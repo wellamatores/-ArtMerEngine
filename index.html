@@ -1,9 +1,14 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>SDT5D Engine · ArtMer v0.5 · ECS-ready</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta http-equiv="X-Content-Type-Options" content="nosniff" />
+<meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
+<meta name="color-scheme" content="dark" />
+<meta name="theme-color" content="#0b0e13" />
+<meta name="description" content="SDT5D Engine · ArtMer v0.6 — WebGL2 scene editor with Resource Lifecycle (RFC 0003), real ECS, CSM shadows, SSAO, Bloom, TAA, glTF/OBJ import, .sdtanim/.sdtmat formats, WebXR, and WebM recording." />
+<title>SDT5D Engine · ArtMer v0.6 · ECS</title>
 <style>
   :root{
     --bg:#0b0e13;--panel:#121722;--panel-2:#1a2130;
@@ -13,7 +18,22 @@
   }
   *{box-sizing:border-box}
   html,body,#app{height:100%;margin:0;background:var(--bg);color:var(--text);
-    font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+    font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    overflow:hidden;-webkit-user-select:none;user-select:none}
+
+  /* Accessibility */
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:2px}
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;
+    overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+  @media (prefers-reduced-motion: reduce){
+    *,*::before,*::after{animation-duration:.01ms !important;
+      animation-iteration-count:1 !important;transition-duration:.01ms !important}
+  }
+  @media (prefers-contrast: high){
+    body{background:#000;color:#fff}
+    .side{background:#000;border-color:#fff}
+  }
+
   .topbar{display:flex;align-items:center;justify-content:space-between;
     padding:6px 12px;border-bottom:1px solid var(--border);background:var(--panel);
     flex-wrap:wrap;gap:6px}
@@ -37,6 +57,10 @@
   .side h2{font-size:10px;text-transform:uppercase;letter-spacing:.08em;
     color:var(--muted);margin:12px 0 6px}
   .side h2:first-child{margin-top:0}
+  .side::-webkit-scrollbar{width:8px}
+  .side::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+  .side::-webkit-scrollbar-thumb:hover{background:#3a4a5a}
+  .side{scrollbar-width:thin;scrollbar-color:var(--border) transparent}
   .viewport-panel{position:relative;min-width:0;background:#000;display:grid;
     grid-template-rows:1fr 200px}
   #viewport{display:block;width:100%;height:100%;grid-row:1;cursor:default;outline:none}
@@ -187,60 +211,61 @@
 </style>
 </head>
 <body>
+<a href="#viewport" class="sr-only">Skip to main viewport</a>
 <div id="app">
-  <header class="topbar">
+  <header class="topbar" role="banner">
     <div class="brand">
-      <span class="logo">AM</span>
+      <span class="logo" aria-hidden="true">AM</span>
       <div>
-        <h1>SDT5D · ArtMer v0.5</h1>
-        <p class="subtitle">RFC 0003 · ECS-ready · XR · AV Codecs · Fullscreen · Temporal</p>
+        <h1>SDT5D · ArtMer v0.6</h1>
+        <p class="subtitle">RFC 0003 · Real ECS · XR · AV Codecs · Fullscreen · Temporal</p>
       </div>
     </div>
-    <div class="actions">
-      <button id="btn-mode-select" class="mode-btn" data-mode="select">Select (Q)</button>
-      <button id="btn-mode-move" class="mode-btn active" data-mode="translate">Move (W)</button>
-      <button id="btn-mode-rotate" class="mode-btn" data-mode="rotate">Rotate (E)</button>
-      <button id="btn-mode-scale" class="mode-btn" data-mode="scale">Scale (R)</button>
+    <div class="actions" role="toolbar" aria-label="Editor actions">
+      <button id="btn-mode-select" class="mode-btn" data-mode="select" aria-label="Select mode" title="Select mode (Q)">Select (Q)</button>
+      <button id="btn-mode-move" class="mode-btn active" data-mode="translate" aria-label="Move mode" title="Move mode (W)">Move (W)</button>
+      <button id="btn-mode-rotate" class="mode-btn" data-mode="rotate" aria-label="Rotate mode" title="Rotate mode (E)">Rotate (E)</button>
+      <button id="btn-mode-scale" class="mode-btn" data-mode="scale" aria-label="Scale mode" title="Scale mode (R)">Scale (R)</button>
       <span style="width:1px;background:var(--border);margin:0 4px"></span>
-      <button id="btn-undo">Undo</button>
-      <button id="btn-redo">Redo</button>
-      <button id="btn-add-cube">+ Cube</button>
-      <button id="btn-add-sphere">+ Sphere</button>
-      <button id="btn-add-empty">+ Empty</button>
-      <button id="btn-duplicate">Dup</button>
-      <button id="btn-array">Array×5</button>
-      <button id="btn-delete" class="danger">Del</button>
+      <button id="btn-undo" aria-label="Undo" title="Undo (Ctrl+Z)">Undo</button>
+      <button id="btn-redo" aria-label="Redo" title="Redo (Ctrl+Y)">Redo</button>
+      <button id="btn-add-cube" aria-label="Add cube" title="Add cube">+ Cube</button>
+      <button id="btn-add-sphere" aria-label="Add sphere" title="Add sphere">+ Sphere</button>
+      <button id="btn-add-empty" aria-label="Add empty entity" title="Add empty entity">+ Empty</button>
+      <button id="btn-duplicate" aria-label="Duplicate selection" title="Duplicate (Ctrl+D)">Dup</button>
+      <button id="btn-array" aria-label="Array copies" title="Array ×5 (Ctrl+Shift+D)">Array×5</button>
+      <button id="btn-delete" class="danger" aria-label="Delete selection" title="Delete (Del)">Del</button>
       <span style="width:1px;background:var(--border);margin:0 4px"></span>
       <button id="btn-load-gltf" title="Import glTF / GLB (multi-file)">glTF</button>
-      <input type="file" id="file-gltf" accept=".gltf,.glb,.bin,.png,.jpg,.jpeg,.webp,.ktx2" multiple style="display:none" />
+      <input type="file" id="file-gltf" accept=".gltf,.glb,.bin,.png,.jpg,.jpeg,.webp,.ktx2" multiple style="display:none" aria-hidden="true" />
       <button id="btn-load-obj" title="Import Wavefront OBJ">OBJ</button>
-      <input type="file" id="file-obj" accept=".obj" style="display:none" />
+      <input type="file" id="file-obj" accept=".obj" style="display:none" aria-hidden="true" />
       <button id="btn-save" title="Export world JSON">Save JSON</button>
       <button id="btn-load" title="Import JSON / OBJ / glTF / animation / secure pack">Load…</button>
-      <input type="file" id="file-load" accept=".json,.obj,.gltf,.glb,.sdtanim,.sdtmat,.bin,.ktx2" multiple style="display:none" />
+      <input type="file" id="file-load" accept=".json,.obj,.gltf,.glb,.sdtanim,.sdtmat,.bin,.ktx2" multiple style="display:none" aria-hidden="true" />
       <button id="btn-export-obj" title="Export scene OBJ">→ OBJ</button>
       <button id="btn-export-anim" title="Export animations (.sdtanim)">→ Anim</button>
-      <button id="btn-export-secure" title="Export encrypted material vault">🔒 Mats</button>
+      <button id="btn-export-secure" title="Export encrypted material vault">Mats</button>
       <button id="btn-export-png" title="Screenshot PNG">→ PNG</button>
-      <button id="btn-export-webm" title="Record viewport WebM">● Rec</button>
-      <input type="file" id="file-anim" accept=".sdtanim,.json" style="display:none" />
-      <input type="file" id="file-secure" accept=".sdtmat,.json" style="display:none" />
+      <button id="btn-export-webm" title="Record viewport WebM">Rec</button>
+      <input type="file" id="file-anim" accept=".sdtanim,.json" style="display:none" aria-hidden="true" />
+      <input type="file" id="file-secure" accept=".sdtmat,.json" style="display:none" aria-hidden="true" />
       <button id="btn-frame" title="Frame all visible layers">Frame</button>
-      <div class="mode-toggle" id="mode-toggle" title="Presentation mode">
-        <button type="button" data-mode="desktop" class="active" id="btn-mode-desktop">Desktop</button>
-        <button type="button" data-mode="vr" id="btn-mode-vr">VR</button>
-        <button type="button" data-mode="ar" id="btn-mode-ar">AR</button>
+      <div class="mode-toggle" id="mode-toggle" title="Presentation mode" role="group" aria-label="Presentation mode">
+        <button type="button" data-mode="desktop" class="active" id="btn-mode-desktop" aria-label="Desktop mode">Desktop</button>
+        <button type="button" data-mode="vr" id="btn-mode-vr" aria-label="VR mode">VR</button>
+        <button type="button" data-mode="ar" id="btn-mode-ar" aria-label="AR mode">AR</button>
       </div>
       <button id="btn-fullscreen" title="Fullscreen viewport">Fullscreen</button>
-      <button id="btn-console">Cmd</button>
-      <button id="btn-bookmark">📷 Cam</button>
+      <button id="btn-console" aria-label="Toggle command console" title="Toggle command console (backtick)">Cmd</button>
+      <button id="btn-bookmark" aria-label="Save current camera view" title="Save current camera view">Cam</button>
     </div>
   </header>
 
-  <main class="layout">
-    <aside class="side">
+  <main class="layout" role="main">
+    <aside class="side" aria-label="Hierarchy and world panels">
       <h2>Hierarchy</h2>
-      <div id="tree"></div>
+      <div id="tree" role="tree"></div>
       <div class="group-header">Camera Bookmarks</div>
       <ul class="bookmark-list" id="bookmark-list"></ul>
       <button id="btn-bookmark-add" style="width:100%;margin-top:4px">Save current view</button>
@@ -276,9 +301,9 @@
     </aside>
 
     <section class="viewport-panel">
-      <canvas id="viewport" tabindex="0"></canvas>
+      <canvas id="viewport" tabindex="0" aria-label="3D viewport"></canvas>
       <div class="overlay">
-        <div class="hud">
+        <div class="hud" role="status" aria-live="polite">
           <span id="backend-badge">—</span>
           <span id="mode-badge">Move</span>
           <span id="fps">0 fps</span>
@@ -290,26 +315,26 @@
           <span id="sel-badge">none</span>
           <span id="hist-badge">hist: 0/0</span>
           <span id="world-badge">ArtMer · t=0</span>
-          <span id="rec-badge">● REC</span>
+          <span id="rec-badge">REC</span>
           <span id="xr-badge">XR</span>
         </div>
       </div>
-      <div class="overlay-labels" id="overlay-labels"></div>
-      <pre id="error-banner"></pre>
+      <div class="overlay-labels" id="overlay-labels" aria-hidden="true"></div>
+      <pre id="error-banner" role="alert"></pre>
       <pre id="diag-window">initializing…</pre>
-      <div id="console">
+      <div id="console" role="log" aria-label="Command console">
         <div id="console-log"></div>
-        <input id="console-input" type="text" placeholder="type 'help' for commands" />
+        <input id="console-input" type="text" placeholder="type 'help' for commands" aria-label="Command input" />
       </div>
-      <div id="obj-export-hint"></div>
-      <div id="loading-overlay">
+      <div id="obj-export-hint" role="status" aria-live="polite"></div>
+      <div id="loading-overlay" role="status" aria-live="polite">
         <div class="title" id="loading-title">Loading</div>
         <div class="bar"><i id="loading-bar"></i></div>
         <div class="sub" id="loading-sub"></div>
       </div>
     </section>
 
-    <aside class="side right">
+    <aside class="side right" aria-label="Inspector and animation panels">
       <h2>Inspector</h2>
       <div id="inspector"><div class="hint">Select an object</div></div>
 
@@ -405,7 +430,7 @@
       <label class="row">Bitrate Mb/s <input type="range" id="rg-rec-bitrate" min="1" max="20" step="1" value="6" /></label>
       <button id="btn-av-probe" style="width:100%;margin-top:4px">Probe codecs</button>
       <button id="btn-av-convert" style="width:100%;margin-top:3px" title="Re-encode last recording with selected codecs">Re-encode last clip</button>
-      <input type="file" id="file-av-import" accept="audio/*,video/*" style="display:none" />
+      <input type="file" id="file-av-import" accept="audio/*,video/*" style="display:none" aria-hidden="true" />
       <button id="btn-av-import" style="width:100%;margin-top:3px">Import AV file</button>
       <div class="hint" id="av-status" style="margin-top:4px">No clip in buffer</div>
 
@@ -433,7 +458,7 @@
         <kbd>Ctrl+Z/Y</kbd> undo/redo · <kbd>Ctrl+D</kbd> dup · <kbd>Ctrl+Shift+D</kbd> array<br>
         <kbd>Ctrl+Click</kbd> multi-select · <kbd>Shift</kbd> drag = disable snap<br>
         <kbd>`</kbd> toggle console · <kbd>Del</kbd> delete<br>
-        Console: <b>time</b> · <b>layer</b> · <b>world</b> · <b>mem</b> · <b>res</b> · <b>leak</b> · help
+        Console: <b>time</b> · <b>layer</b> · <b>world</b> · <b>mem</b> · <b>res</b> · <b>leak</b> · <b>ecs</b> · help
       </p>
     </aside>
   </main>
@@ -442,18 +467,21 @@
 <script>
 "use strict";
 /* ============================================================================
- * SDT5D ENGINE · ArtMer v0.5 (ECS-ready)
+ * SDT5D ENGINE · ArtMer v0.6 (ECS)
  * RFC 0003 v2 · Unified Resource Lifecycle & Disposal Contract
  * Render Core + Temporal Engine + World Builder + Spatial + Interface
  *
- * v0.5 delta vs v0.4:
- *  - Components carry `type` field (ECS migration prep)
- *  - LightComponent.type → ECS name; LightComponent.lightType → light kind
- *  - deviceInfoEl expression closed properly
- *  - orphan string literal removed
- *  - EngineConsole catches async rejections
- *  - showLoading/hideLoading re-entrant safe
- *  - AssetLoadPipeline recognizes .ktx2
+ * v0.6 delta vs v0.5:
+ *  - Real ECS core: World with component stores, cached queries, phased systems
+ *  - Entity accessors (.renderer/.light/.artmer/.transform) backed by World
+ *  - EntityRegistry is a thin wrapper over World
+ *  - ArtMerData has ECS type "ArtMerData" + game kind "artmerKind"
+ *  - Systems registered in main(); frame() reduced to phase dispatch
+ *  - __leakTestECS + "ecs dump|stats|leak" console commands
+ *  - deserializeScene no longer ejects root's Transform
+ *  - DOCTYPE uppercase, full meta (security, color-scheme, description)
+ *  - Accessibility: focus-visible, reduced-motion, high-contrast, aria labels
+ *  - Device probe uses userAgentData + hardware hints + prefersDark
  * ========================================================================== */
 
 var GLLog = [];
@@ -463,11 +491,152 @@ function glLog(m) { GLLog.push(m); if (GLLog.length > 300) GLLog.shift(); consol
  * DEVICE DETECTION
  * ========================================================================== */
 var Device = (function () {
-  var ua = navigator.userAgent || "";
-  var isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(ua);
-  var isLowEnd = /Mali-4|Mali-T|Adreno [1-4]|PowerVR SGX|Intel HD 3/i.test(ua);
-  var prefersReducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion)").matches;
-  return { isMobile: isMobile, isLowEnd: isLowEnd, prefersReducedMotion: prefersReducedMotion };
+  var ua = (navigator.userAgent || "").toLowerCase();
+  var platform = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || "";
+  var isMobile = /android|iphone|ipad|ipod|mobile|windows phone/i.test(ua) ||
+                 /android|ios|mobile/i.test(platform);
+  var isLowEnd = /mali-4|mali-t|adreno [1-4]|powervr sgx|intel hd 3|intel hd 4|apple a7|apple a8/i.test(ua);
+  var prefersReducedMotion = !!(window.matchMedia &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  var prefersDark = !!(window.matchMedia &&
+    window.matchMedia("(prefers-color-scheme: dark)").matches);
+  var hwConcurrency = navigator.hardwareConcurrency || 4;
+  var deviceMemory = navigator.deviceMemory || 4;
+  if (hwConcurrency < 4 || deviceMemory < 4) isLowEnd = true;
+  return {
+    isMobile: isMobile, isLowEnd: isLowEnd,
+    prefersReducedMotion: prefersReducedMotion, prefersDark: prefersDark,
+    hwConcurrency: hwConcurrency, deviceMemory: deviceMemory
+  };
+})();
+
+/* ============================================================================
+ * ECS CORE (v0.6)
+ * ----------------------------------------------------------------------------
+ * - Real component stores: Map<type, Map<entityId, component>>
+ * - Cached queries via World.query(["A","B"])
+ * - Phased systems: preUpdate / update / postUpdate / render
+ * - Zero call-site change: entity.renderer / .light / .artmer / .transform
+ *   continue working through accessors
+ * ========================================================================== */
+var World = (function () {
+  var stores = new Map();
+  var systemsByPhase = { preUpdate: [], update: [], postUpdate: [], render: [] };
+  var queryCache = new Map();
+  var queryDirty = true;
+  var entities = new Map();
+  var counters = { add: 0, remove: 0, queries: 0, systemsRun: 0 };
+
+  function _store(type) {
+    var s = stores.get(type);
+    if (!s) { s = new Map(); stores.set(type, s); }
+    return s;
+  }
+  function addComponent(entity, comp) {
+    if (!entity || !comp || !comp.type) {
+      glLog("ECS.addComponent: missing entity or comp.type");
+      return null;
+    }
+    comp.entity = entity;
+    _store(comp.type).set(entity.id, comp);
+    queryDirty = true;
+    counters.add++;
+    return comp;
+  }
+  function getComponent(entity, type) {
+    var s = stores.get(type);
+    return s ? (s.get(entity.id) || null) : null;
+  }
+  function removeComponent(entity, type) {
+    var s = stores.get(type);
+    if (!s) return false;
+    var ok = s.delete(entity.id);
+    if (ok) { queryDirty = true; counters.remove++; }
+    return ok;
+  }
+  function hasComponent(entity, type) {
+    var s = stores.get(type);
+    return !!(s && s.has(entity.id));
+  }
+  function query(types) {
+    if (!types || !types.length) return [];
+    var key = types.slice().sort().join("|");
+    if (!queryDirty && queryCache.has(key)) {
+      counters.queries++;
+      return queryCache.get(key);
+    }
+    var first = stores.get(types[0]);
+    var out = [];
+    if (first) {
+      first.forEach(function (comp, id) {
+        for (var i = 1; i < types.length; i++) {
+          var s = stores.get(types[i]);
+          if (!s || !s.has(id)) return;
+        }
+        out.push(id);
+      });
+    }
+    queryCache.set(key, out);
+    queryDirty = false;
+    counters.queries++;
+    return out;
+  }
+  function registerSystem(phase, order, fn, name) {
+    if (!systemsByPhase[phase]) { glLog("ECS.registerSystem: unknown phase " + phase); return; }
+    systemsByPhase[phase].push({ order: order | 0, fn: fn, name: name || "system" });
+    systemsByPhase[phase].sort(function (a, b) { return a.order - b.order; });
+  }
+  function runPhase(phase, dt) {
+    var list = systemsByPhase[phase];
+    if (!list) return;
+    for (var i = 0; i < list.length; i++) {
+      try { list[i].fn(dt); counters.systemsRun++; }
+      catch (e) { glLog("ECS." + phase + "." + list[i].name + " error: " + e.message); }
+    }
+  }
+  function registerEntity(e) { entities.set(e.id, e); return e; }
+  function unregisterEntity(e) {
+    stores.forEach(function (s) {
+      if (s.has(e.id)) { s.delete(e.id); queryDirty = true; counters.remove++; }
+    });
+    entities.delete(e.id);
+  }
+  function byId(id) { return entities.get(id) || null; }
+  function allEntities() { return Array.from(entities.values()); }
+  function stats() {
+    var byType = {};
+    stores.forEach(function (s, type) { byType[type] = s.size; });
+    return {
+      entities: entities.size,
+      types: Object.keys(byType).length,
+      byType: byType,
+      systems: {
+        preUpdate: systemsByPhase.preUpdate.length,
+        update: systemsByPhase.update.length,
+        postUpdate: systemsByPhase.postUpdate.length,
+        render: systemsByPhase.render.length
+      },
+      queryCacheSize: queryCache.size,
+      counters: Object.assign({}, counters)
+    };
+  }
+  function dump() {
+    var s = stats();
+    glLog("-- ECS --");
+    glLog("entities: " + s.entities + " · types: " + s.types);
+    Object.keys(s.byType).forEach(function (t) { glLog("  " + t + ": " + s.byType[t]); });
+    glLog("systems: pre=" + s.systems.preUpdate + " up=" + s.systems.update +
+          " post=" + s.systems.postUpdate + " render=" + s.systems.render);
+    glLog("queries: " + s.counters.queries +
+          " · add: " + s.counters.add + " · remove: " + s.counters.remove);
+  }
+  return {
+    addComponent: addComponent, getComponent: getComponent,
+    removeComponent: removeComponent, hasComponent: hasComponent,
+    query: query, registerSystem: registerSystem, runPhase: runPhase,
+    registerEntity: registerEntity, unregisterEntity: unregisterEntity,
+    byId: byId, allEntities: allEntities, stats: stats, dump: dump
+  };
 })();
 
 /* ============================================================================
@@ -818,7 +987,7 @@ BVH.prototype._query = function (node, frustum, out) {
 };
 
 /* ============================================================================
- * RESOURCE MANAGER  (RFC 0003 v2)
+ * RESOURCE MANAGER (RFC 0003 v2)
  * ========================================================================== */
 var ResourceManager = (function () {
   var cache = new Map();
@@ -957,7 +1126,7 @@ var ResourceManager = (function () {
 })();
 
 /* ============================================================================
- * GEOMETRY  (RFC 0003 §4.5 — full byte-compare on collision)
+ * GEOMETRY
  * ========================================================================== */
 var GeometryRegistry = (function () {
   var byHash = new Map();
@@ -1000,7 +1169,6 @@ var GeometryRegistry = (function () {
       var existing = byHash.get(geo.hash);
       if (existing === geo) return geo.hash;
       if (byteCompare(existing, geo)) return geo.hash;
-      // collision — append suffix
       var base = geo.hash, n = 1;
       while (byHash.has(base + "_" + n)) {
         if (byteCompare(byHash.get(base + "_" + n), geo)) return base + "_" + n;
@@ -1201,7 +1369,7 @@ var Primitives = {
 };
 
 /* ============================================================================
- * TEXTURES  (RFC 0003 §4.5 hash + §4.1 dispose)
+ * TEXTURES
  * ========================================================================== */
 function Texture2D(backend, width, height, data, options) {
   options = options || {};
@@ -1315,7 +1483,7 @@ Texture2D.loadFromBlob = function (backend, blob) {
 };
 
 /* ============================================================================
- * IBL  (RFC 0003 §4.1 dispose)
+ * IBL
  * ========================================================================== */
 function IBL(backend) {
   this.backend = backend;
@@ -1763,7 +1931,7 @@ var AnimationIO = (function () {
     options = options || {};
     var out = {
       schema: SCHEMA,
-      generator: "SDT5D Engine · ArtMer v0.5",
+      generator: "SDT5D Engine · ArtMer v0.6",
       exportedAt: new Date().toISOString(),
       loopDefault: true,
       clips: (clips || []).map(function (clip) {
@@ -1901,7 +2069,7 @@ var AnimationIO = (function () {
 })();
 
 /* ============================================================================
- * ANIMATION EDITOR + REAL-TIME PREVIEW
+ * ANIMATION EDITOR
  * ========================================================================== */
 var AnimationEditor = (function () {
   var state = {
@@ -2046,13 +2214,9 @@ var AnimationEditor = (function () {
 
   return {
     state: state,
-    getTrack: getTrack,
-    keyCount: keyCount,
-    readKey: readKey,
-    writeKeyValues: writeKeyValues,
-    findKeyIndexAtTime: findKeyIndexAtTime,
-    insertKey: insertKey,
-    deleteKey: deleteKey,
+    getTrack: getTrack, keyCount: keyCount, readKey: readKey,
+    writeKeyValues: writeKeyValues, findKeyIndexAtTime: findKeyIndexAtTime,
+    insertKey: insertKey, deleteKey: deleteKey,
     recomputeDuration: recomputeDuration,
     capturePoseForTrack: capturePoseForTrack,
     ensureTrackForEntity: ensureTrackForEntity,
@@ -2146,7 +2310,7 @@ var SecureMaterialVault = (function () {
     var payload = {
       schema: SCHEMA,
       materials: collectMaterials(root),
-      meta: { engine: "SDT5D", version: "0.5", count: 0 }
+      meta: { engine: "SDT5D", version: "0.6", count: 0 }
     };
     payload.meta.count = payload.materials.length;
     var plain = new TextEncoder().encode(JSON.stringify(payload));
@@ -2204,10 +2368,8 @@ var SecureMaterialVault = (function () {
     SCHEMA: SCHEMA,
     collectMaterials: collectMaterials,
     applyMaterials: applyMaterials,
-    encryptVault: encryptVault,
-    decryptVault: decryptVault,
-    downloadEncrypted: downloadEncrypted,
-    importEncrypted: importEncrypted
+    encryptVault: encryptVault, decryptVault: decryptVault,
+    downloadEncrypted: downloadEncrypted, importEncrypted: importEncrypted
   };
 })();
 
@@ -2275,11 +2437,7 @@ var MediaCodecHub = (function () {
     return audioCtx;
   }
 
-  function setLastRecording(blob, meta) {
-    lastBlob = blob;
-    lastMeta = meta || {};
-  }
-
+  function setLastRecording(blob, meta) { lastBlob = blob; lastMeta = meta || {}; }
   function getLastRecording() { return { blob: lastBlob, meta: lastMeta }; }
 
   async function reencode(blob, options) {
@@ -2334,10 +2492,8 @@ var MediaCodecHub = (function () {
     var ctx = getAudioContext();
     var audioOk = false;
     if (ctx && /^audio\//.test(file.type)) {
-      try {
-        await ctx.decodeAudioData(buf.slice(0));
-        audioOk = true;
-      } catch (e) { glLog("AV decode probe: " + e.message); }
+      try { await ctx.decodeAudioData(buf.slice(0)); audioOk = true; }
+      catch (e) { glLog("AV decode probe: " + e.message); }
     }
     return { blob: blob, audioDecoded: audioOk, meta: lastMeta };
   }
@@ -2364,18 +2520,11 @@ var MediaCodecHub = (function () {
   }
 
   return {
-    probe: probe,
-    pickVideo: pickVideo,
-    pickAudio: pickAudio,
-    setLastRecording: setLastRecording,
-    getLastRecording: getLastRecording,
-    reencode: reencode,
-    importFile: importFile,
-    downloadBlob: downloadBlob,
-    fillSelect: fillSelect,
-    getAudioContext: getAudioContext,
-    VIDEO_CANDIDATES: VIDEO_CANDIDATES,
-    AUDIO_CANDIDATES: AUDIO_CANDIDATES
+    probe: probe, pickVideo: pickVideo, pickAudio: pickAudio,
+    setLastRecording: setLastRecording, getLastRecording: getLastRecording,
+    reencode: reencode, importFile: importFile, downloadBlob: downloadBlob,
+    fillSelect: fillSelect, getAudioContext: getAudioContext,
+    VIDEO_CANDIDATES: VIDEO_CANDIDATES, AUDIO_CANDIDATES: AUDIO_CANDIDATES
   };
 })();
 
@@ -2411,9 +2560,8 @@ var DeviceRegistry = (function () {
       var out = { audioinput: [], audiooutput: [], videoinput: [] };
       all.forEach(function (d) {
         var entry = {
-          id: d.deviceId,
-          kind: d.kind,
-          label: d.label || (d.kind + " (" + (d.deviceId || "default").slice(0, 8) + "…)"),
+          id: d.deviceId, kind: d.kind,
+          label: d.label || (d.kind + " (" + (d.deviceId || "default").slice(0, 8) + ")"),
           groupId: d.groupId
         };
         if (out[d.kind]) out[d.kind].push(entry);
@@ -2440,7 +2588,6 @@ var DeviceRegistry = (function () {
 
 /* ============================================================================
  * XR SESSION MANAGER
- * v0.5 delta: enter(requestedMode) accepts explicit mode to avoid async race
  * ========================================================================== */
 var XRSessionManager = (function () {
   var mode = "desktop";
@@ -2465,12 +2612,7 @@ var XRSessionManager = (function () {
     return Promise.resolve(mode);
   }
 
-  function attach(b, cam) {
-    backend = b;
-    camera = cam;
-    gl = b && b.gl;
-  }
-
+  function attach(b, cam) { backend = b; camera = cam; gl = b && b.gl; }
   function setOnModeChange(fn) { onModeChange = fn; }
 
   async function enter(requestedMode) {
@@ -2484,44 +2626,28 @@ var XRSessionManager = (function () {
     if (!supported) throw new Error(sessionMode + " is not supported on this device");
 
     var req = { optionalFeatures: ["local-floor", "bounded-floor", "hand-tracking", "layers"] };
-    if (sessionMode === "immersive-ar") {
-      req.optionalFeatures.push("dom-overlay", "hit-test", "anchors");
-    }
+    if (sessionMode === "immersive-ar") req.optionalFeatures.push("dom-overlay", "hit-test", "anchors");
     session = await navigator.xr.requestSession(sessionMode, req);
     session.addEventListener("end", function () {
-      session = null;
-      refSpace = null;
-      baseLayer = null;
+      session = null; refSpace = null; baseLayer = null;
       if (onModeChange) onModeChange(mode, mode);
       glLog("XR session ended");
     });
-
     try { await gl.makeXRCompatible(); } catch (e) { glLog("makeXRCompatible: " + e.message); }
-
     baseLayer = new XRWebGLLayer(session, gl, { antialias: true, alpha: useMode === "ar" });
     await session.updateRenderState({ baseLayer: baseLayer });
-
-    try {
-      refSpace = await session.requestReferenceSpace("local-floor");
-    } catch (e1) {
-      try {
-        refSpace = await session.requestReferenceSpace("local");
-      } catch (e2) {
-        refSpace = await session.requestReferenceSpace("viewer");
-      }
+    try { refSpace = await session.requestReferenceSpace("local-floor"); }
+    catch (e1) {
+      try { refSpace = await session.requestReferenceSpace("local"); }
+      catch (e2) { refSpace = await session.requestReferenceSpace("viewer"); }
     }
-
     glLog("XR session started: " + sessionMode);
     return session;
   }
 
   async function exit() {
-    if (session) {
-      try { await session.end(); } catch (e) { glLog("XR end: " + e.message); }
-    }
-    session = null;
-    refSpace = null;
-    baseLayer = null;
+    if (session) { try { await session.end(); } catch (e) { glLog("XR end: " + e.message); } }
+    session = null; refSpace = null; baseLayer = null;
   }
 
   function adaptCameraFromFrame(frame) {
@@ -2533,11 +2659,7 @@ var XRSessionManager = (function () {
     camera.position.set(td.position.x, td.position.y, td.position.z);
     var q = new Quat(td.orientation.x, td.orientation.y, td.orientation.z, td.orientation.w);
     var forward = q.rotateVec3(new Vec3(0, 0, -1));
-    camera.target.set(
-      camera.position.x + forward.x,
-      camera.position.y + forward.y,
-      camera.position.z + forward.z
-    );
+    camera.target.set(camera.position.x + forward.x, camera.position.y + forward.y, camera.position.z + forward.z);
     return true;
   }
 
@@ -2546,17 +2668,11 @@ var XRSessionManager = (function () {
   function getBaseLayer() { return baseLayer; }
 
   return {
-    getMode: getMode,
-    setMode: setMode,
-    isPresenting: isPresenting,
-    attach: attach,
-    setOnModeChange: setOnModeChange,
-    enter: enter,
-    exit: exit,
+    getMode: getMode, setMode: setMode, isPresenting: isPresenting,
+    attach: attach, setOnModeChange: setOnModeChange,
+    enter: enter, exit: exit,
     adaptCameraFromFrame: adaptCameraFromFrame,
-    getSession: getSession,
-    getRefSpace: getRefSpace,
-    getBaseLayer: getBaseLayer
+    getSession: getSession, getRefSpace: getRefSpace, getBaseLayer: getBaseLayer
   };
 })();
 
@@ -2573,7 +2689,6 @@ var AssetLoadPipeline = (function () {
     if (/\.bin$/i.test(n)) return "bin";
     return "unknown";
   }
-
   function normalizeEntityMatrix(entity) {
     var t = entity.transform;
     function finite(v, d) { return isFinite(v) ? v : d; }
@@ -2582,22 +2697,15 @@ var AssetLoadPipeline = (function () {
     var len = Math.hypot(q.x, q.y, q.z, q.w);
     if (!isFinite(len) || len < 1e-8) t.rotation = Quat.identity();
     else t.rotation.normalize();
-    t.scale.set(
-      finite(t.scale.x, 1) || 1e-4,
-      finite(t.scale.y, 1) || 1e-4,
-      finite(t.scale.z, 1) || 1e-4
-    );
+    t.scale.set(finite(t.scale.x, 1) || 1e-4, finite(t.scale.y, 1) || 1e-4, finite(t.scale.z, 1) || 1e-4);
   }
-
   function postProcessLoadedRoot(loadedRoot, options) {
     options = options || {};
     loadedRoot.traverse(function (e) {
       normalizeEntityMatrix(e);
       if (options.fixScale) {
         var s = e.transform.scale;
-        if (s.x < 0 || s.y < 0 || s.z < 0) {
-          s.set(Math.abs(s.x), Math.abs(s.y), Math.abs(s.z));
-        }
+        if (s.x < 0 || s.y < 0 || s.z < 0) s.set(Math.abs(s.x), Math.abs(s.y), Math.abs(s.z));
       }
     });
     if (options.blenderYUp && typeof BlenderImport !== "undefined" && BlenderImport.objYUp) {
@@ -2605,21 +2713,14 @@ var AssetLoadPipeline = (function () {
     }
     if (typeof BlenderImport !== "undefined" && BlenderImport.scale !== 1 && options.applyImportScale) {
       var sc = BlenderImport.scale;
-      loadedRoot.transform.scale.set(
-        loadedRoot.transform.scale.x * sc,
-        loadedRoot.transform.scale.y * sc,
-        loadedRoot.transform.scale.z * sc
-      );
+      loadedRoot.transform.scale.set(loadedRoot.transform.scale.x * sc, loadedRoot.transform.scale.y * sc, loadedRoot.transform.scale.z * sc);
     }
   }
-
   return { classify: classify, normalizeEntityMatrix: normalizeEntityMatrix, postProcessLoadedRoot: postProcessLoadedRoot };
 })();
 
 /* ============================================================================
- * COMPONENTS (v0.5 — ECS-ready)
- * Each component now carries a `type` string. LightComponent gets `lightType`
- * so that `type` is free for ECS use.
+ * COMPONENTS (v0.6 — ECS)
  * ========================================================================== */
 function TransformComponent(pos, rot, scale) {
   this.type = "Transform";
@@ -2641,7 +2742,7 @@ function MeshRenderer(mesh, material) {
 }
 function LightComponent(kind, opts) {
   this.type = "Light";
-  this.lightType = kind;               // "directional" | "point" | "spot"
+  this.lightType = kind;
   opts = opts || {};
   this.color = opts.color || Vec3.one();
   this.intensity = opts.intensity === undefined ? 1 : opts.intensity;
@@ -2673,14 +2774,54 @@ var ENTITY_NEXT_ID = 1;
 function Entity(name) {
   this.id = ENTITY_NEXT_ID++;
   this.name = name || "Entity";
-  this.transform = new TransformComponent();
-  this.renderer = null;
-  this.light = null;
+  this._transform = new TransformComponent();
+  World.addComponent(this, this._transform);
   this.parent = null;
   this.children = [];
   this.visible = true;
   this.tag = "";
+  World.registerEntity(this);
 }
+
+Object.defineProperty(Entity.prototype, "transform", {
+  get: function () { return this._transform; },
+  set: function (v) {
+    if (!v) return;
+    v.type = v.type || "Transform";
+    v.entity = this;
+    this._transform = v;
+    World.addComponent(this, v);
+  },
+  configurable: true
+});
+Object.defineProperty(Entity.prototype, "renderer", {
+  get: function () { return World.getComponent(this, "MeshRenderer"); },
+  set: function (v) {
+    if (v === null || v === undefined) { World.removeComponent(this, "MeshRenderer"); return; }
+    v.type = "MeshRenderer";
+    World.addComponent(this, v);
+  },
+  configurable: true
+});
+Object.defineProperty(Entity.prototype, "light", {
+  get: function () { return World.getComponent(this, "Light"); },
+  set: function (v) {
+    if (v === null || v === undefined) { World.removeComponent(this, "Light"); return; }
+    v.type = "Light";
+    World.addComponent(this, v);
+  },
+  configurable: true
+});
+Object.defineProperty(Entity.prototype, "artmer", {
+  get: function () { return World.getComponent(this, "ArtMerData"); },
+  set: function (v) {
+    if (v === null || v === undefined) { World.removeComponent(this, "ArtMerData"); return; }
+    v.type = "ArtMerData";
+    World.addComponent(this, v);
+  },
+  configurable: true
+});
+
 Entity.prototype.addChild = function (c) { if (c.parent) c.parent.removeChild(c); c.parent = this; this.children.push(c); return c; };
 Entity.prototype.removeChild = function (c) { var i = this.children.indexOf(c); if (i >= 0) { this.children.splice(i, 1); c.parent = null; } };
 Entity.prototype.removeFromParent = function () { if (this.parent) this.parent.removeChild(this); };
@@ -2693,18 +2834,17 @@ Entity.prototype.getModelMatrix = function () {
 };
 
 var EntityRegistry = (function () {
-  var map = new Map();
   return {
-    register: function (e) { map.set(e.id, e); },
-    unregister: function (e) { map.delete(e.id); },
-    byId: function (id) { return map.get(id) || null; },
-    all: function () { return Array.from(map.values()); },
-    clear: function () { map.clear(); }
+    register:   function (e) { World.registerEntity(e); },
+    unregister: function (e) { World.unregisterEntity(e); },
+    byId:       function (id) { return World.byId(id); },
+    all:        function () { return World.allEntities(); },
+    clear:      function () { World.allEntities().forEach(function (e) { World.unregisterEntity(e); }); }
   };
 })();
 
 /* ============================================================================
- * HISTORY  (RFC 0003)
+ * HISTORY (RFC 0003)
  * ========================================================================== */
 function History() { this.undoStack = []; this.redoStack = []; }
 History.prototype.execute = function (cmd) {
@@ -2776,15 +2916,9 @@ CommandMultiTransform.prototype.undo = function () {
 function collectSubtreeResources(entity) {
   var refs = [];
   entity.traverse(function (e) {
-    if (e.renderer && e.renderer.mesh && e.renderer.mesh.hash) {
-      refs.push({ kind: "mesh", id: e.renderer.mesh.hash, value: e.renderer.mesh });
-    }
-    if (e.renderer && e.renderer.material && e.renderer.material.baseTexture && e.renderer.material.baseTextureHash) {
-      refs.push({ kind: "texture", id: e.renderer.material.baseTextureHash, value: e.renderer.material.baseTexture });
-    }
-    if (e.renderer && e.renderer.skeleton) {
-      refs.push({ kind: "skeleton", id: e.renderer.skeleton.id, value: e.renderer.skeleton });
-    }
+    if (e.renderer && e.renderer.mesh && e.renderer.mesh.hash) refs.push({ kind: "mesh", id: e.renderer.mesh.hash, value: e.renderer.mesh });
+    if (e.renderer && e.renderer.material && e.renderer.material.baseTexture && e.renderer.material.baseTextureHash) refs.push({ kind: "texture", id: e.renderer.material.baseTextureHash, value: e.renderer.material.baseTexture });
+    if (e.renderer && e.renderer.skeleton) refs.push({ kind: "skeleton", id: e.renderer.skeleton.id, value: e.renderer.skeleton });
   });
   return refs;
 }
@@ -2801,18 +2935,11 @@ function CommandAdd(parent, child) {
 }
 CommandAdd.prototype.redo = function () {
   var p = EntityRegistry.byId(this.parentId); var c = EntityRegistry.byId(this.childId);
-  if (p && c) {
-    p.addChild(c);
-    this.refs = collectSubtreeResources(c);
-    acquireResources(this.refs);
-  }
+  if (p && c) { p.addChild(c); this.refs = collectSubtreeResources(c); acquireResources(this.refs); }
 };
 CommandAdd.prototype.undo = function () {
   var c = EntityRegistry.byId(this.childId);
-  if (c) {
-    if (this.refs) { releaseResources(this.refs); this.refs = null; }
-    c.removeFromParent();
-  }
+  if (c) { if (this.refs) { releaseResources(this.refs); this.refs = null; } c.removeFromParent(); }
 };
 
 function CommandRemove(entity) {
@@ -2842,12 +2969,8 @@ CommandRemove.prototype.undo = function () {
         var ref = this.refs[i];
         var got = ResourceManager.acquire(ref.kind, ref.id);
         if (got === null) {
-          if (ref.kind === "mesh") {
-            var geo = GeometryRegistry.get(ref.id);
-            if (geo && e.renderer) e.renderer.mesh = geo;
-          } else if (ref.kind === "texture") {
-            glLog("undo: texture " + ref.id + " evicted, cannot rebuild");
-          }
+          if (ref.kind === "mesh") { var geo = GeometryRegistry.get(ref.id); if (geo && e.renderer) e.renderer.mesh = geo; }
+          else if (ref.kind === "texture") glLog("undo: texture " + ref.id + " evicted, cannot rebuild");
         }
         ResourceManager.unpin(ref.kind, ref.id);
       }
@@ -2855,9 +2978,7 @@ CommandRemove.prototype.undo = function () {
     }
   }
 };
-CommandRemove.prototype.unpin = function () {
-  if (this.refs) { unpinResources(this.refs); this.refs = null; }
-};
+CommandRemove.prototype.unpin = function () { if (this.refs) { unpinResources(this.refs); this.refs = null; } };
 
 function CommandAddMany(parent, children) {
   this.type = "addMany";
@@ -2870,24 +2991,16 @@ CommandAddMany.prototype.redo = function () {
   this.refs = [];
   for (var i = 0; i < this.childIds.length; i++) {
     var c = EntityRegistry.byId(this.childIds[i]);
-    if (c) {
-      p.addChild(c);
-      var refs = collectSubtreeResources(c);
-      acquireResources(refs);
-      this.refs = this.refs.concat(refs);
-    }
+    if (c) { p.addChild(c); var refs = collectSubtreeResources(c); acquireResources(refs); this.refs = this.refs.concat(refs); }
   }
 };
 CommandAddMany.prototype.undo = function () {
   if (this.refs) { releaseResources(this.refs); this.refs = null; }
-  for (var i = 0; i < this.childIds.length; i++) {
-    var c = EntityRegistry.byId(this.childIds[i]);
-    if (c) c.removeFromParent();
-  }
+  for (var i = 0; i < this.childIds.length; i++) { var c = EntityRegistry.byId(this.childIds[i]); if (c) c.removeFromParent(); }
 };
 
 /* ============================================================================
- * SHADERS
+ * SHADERS (unchanged from v0.5)
  * ========================================================================== */
 var PBR_VS = [
   "#version 300 es", "precision highp float;",
@@ -3284,7 +3397,7 @@ var SHADOW_DEBUG_FS = [
 ].join("\n");
 
 /* ============================================================================
- * WEBGL2 BACKEND
+ * WEBGL2 BACKEND (unchanged from v0.5)
  * ========================================================================== */
 function WebGL2Backend(canvas) {
   var gl = canvas.getContext("webgl2", {
@@ -3391,9 +3504,7 @@ function ColorTarget(gl, w, h, float) {
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
   gl.bindTexture(gl.TEXTURE_2D, null);
 }
-ColorTarget.prototype.estimateBytes = function () {
-  return this.width * this.height * (this.float ? 8 : 4);
-};
+ColorTarget.prototype.estimateBytes = function () { return this.width * this.height * (this.float ? 8 : 4); };
 ColorTarget.prototype.dispose = function () {
   if (!this._gl || !this.handle) return;
   try { this._gl.deleteTexture(this.handle); } catch (e) { glLog("color target dispose: " + e.message); }
@@ -3429,12 +3540,8 @@ FboResource.prototype.dispose = function () {
   this.handle = null;
 };
 
-WebGL2Backend.prototype.createColorTexture = function (w, h, float) {
-  return new ColorTarget(this.gl, w, h, float && this.canRenderFloat);
-};
-WebGL2Backend.prototype.createDepthTexture = function (w, h, bits) {
-  return new DepthTarget(this.gl, w, h, bits);
-};
+WebGL2Backend.prototype.createColorTexture = function (w, h, float) { return new ColorTarget(this.gl, w, h, float && this.canRenderFloat); };
+WebGL2Backend.prototype.createDepthTexture = function (w, h, bits) { return new DepthTarget(this.gl, w, h, bits); };
 WebGL2Backend.prototype.tryCreateFBO = function (color, depth, label) {
   var gl = this.gl;
   var fbo = gl.createFramebuffer();
@@ -3457,9 +3564,7 @@ WebGL2Backend.prototype.destroyTargets = function () {
   this.taaFBO = [null, null]; this.taaTex = [null, null];
   this.motionFBO = null; this.motionTex = null;
   this.ssaoFBO = null; this.ssaoTex = null; this.ssaoAvailable = false;
-  this.bloomAvailable = false;
-  this.taaAvailable = false;
-  this.hdrMode = "none";
+  this.bloomAvailable = false; this.taaAvailable = false; this.hdrMode = "none";
 };
 WebGL2Backend.prototype.initShadowCascades = function () {
   var gl = this.gl;
@@ -3509,11 +3614,7 @@ WebGL2Backend.prototype.initRenderTargets = function (w, h) {
     }
     color.dispose(); depth.dispose();
   }
-  if (!built) {
-    glLog("All HDR FBO attempts failed — direct to canvas");
-    this.hdrMode = "direct";
-    return;
-  }
+  if (!built) { glLog("All HDR FBO attempts failed — direct to canvas"); this.hdrMode = "direct"; return; }
   ResourceManager.put("postTarget", "hdr", {
     dispose: function () { colorRes.dispose(); depthRes.dispose(); fboRes.dispose(); },
     estimateBytes: function () { return colorRes.estimateBytes() + depthRes.estimateBytes(); }
@@ -3530,21 +3631,18 @@ WebGL2Backend.prototype.initRenderTargets = function (w, h) {
       bfbo = this.tryCreateFBO(btex, null, "bloom" + i + "-u8");
       if (!bfbo) { this.bloomAvailable = false; break; }
     }
-    this.bloomTex[i] = btex;
-    this.bloomFBO[i] = bfbo.handle;
+    this.bloomTex[i] = btex; this.bloomFBO[i] = bfbo.handle;
     ResourceManager.put("postTarget", "bloom" + i, {
       dispose: (function (bt, bf) { return function () { bt.dispose(); bf.dispose(); }; })(btex, bfbo),
       estimateBytes: function () { return btex.estimateBytes(); }
     }, btex.estimateBytes());
     this.bloomAvailable = true;
   }
-
   for (var j = 0; j < 2; j++) {
     var ttex = this.createColorTexture(w, h, false);
     var tfbo = this.tryCreateFBO(ttex, null, "taa" + j);
     if (!tfbo) { ttex.dispose(); this.taaAvailable = false; glLog("TAA disabled"); break; }
-    this.taaTex[j] = ttex;
-    this.taaFBO[j] = tfbo.handle;
+    this.taaTex[j] = ttex; this.taaFBO[j] = tfbo.handle;
     ResourceManager.put("postTarget", "taa" + j, {
       dispose: (function (tt, tf) { return function () { tt.dispose(); tf.dispose(); }; })(ttex, tfbo),
       estimateBytes: function () { return ttex.estimateBytes(); }
@@ -3554,39 +3652,26 @@ WebGL2Backend.prototype.initRenderTargets = function (w, h) {
   var mtex = this.createColorTexture(w, h, false);
   var mfbo = this.tryCreateFBO(mtex, null, "motion");
   if (mfbo) {
-    this.motionTex = mtex;
-    this.motionFBO = mfbo.handle;
+    this.motionTex = mtex; this.motionFBO = mfbo.handle;
     ResourceManager.put("postTarget", "motion", {
       dispose: (function (mt, mf) { return function () { mt.dispose(); mf.dispose(); }; })(mtex, mfbo),
       estimateBytes: function () { return mtex.estimateBytes(); }
     }, mtex.estimateBytes());
-  } else {
-    mtex.dispose();
-    this.motionTex = null; this.motionFBO = null;
-  }
+  } else { mtex.dispose(); this.motionTex = null; this.motionFBO = null; }
 
   var stex = this.createColorTexture(w, h, false);
   var sfbo = this.tryCreateFBO(stex, null, "ssao");
   if (sfbo) {
-    this.ssaoTex = stex;
-    this.ssaoFBO = sfbo.handle;
-    this.ssaoAvailable = true;
+    this.ssaoTex = stex; this.ssaoFBO = sfbo.handle; this.ssaoAvailable = true;
     ResourceManager.put("postTarget", "ssao", {
       dispose: (function (st, sf) { return function () { st.dispose(); sf.dispose(); }; })(stex, sfbo),
       estimateBytes: function () { return stex.estimateBytes(); }
     }, stex.estimateBytes());
-  } else {
-    stex.dispose();
-    this.ssaoTex = null; this.ssaoFBO = null; this.ssaoAvailable = false;
-  }
-
+  } else { stex.dispose(); this.ssaoTex = null; this.ssaoFBO = null; this.ssaoAvailable = false; }
   this.taaIndex = 0;
   glLog("RT: " + w + "x" + h + " " + this.hdrMode + " bloom=" + this.bloomAvailable + " taa=" + this.taaAvailable + " ssao=" + this.ssaoAvailable);
 };
-WebGL2Backend.prototype.requestResize = function (w, h) {
-  this._pendingResize = { w: w, h: h };
-  this._targetsDirty = true;
-};
+WebGL2Backend.prototype.requestResize = function (w, h) { this._pendingResize = { w: w, h: h }; this._targetsDirty = true; };
 WebGL2Backend.prototype.commitResize = function () {
   if (!this._targetsDirty || !this._pendingResize) return false;
   var r = this._pendingResize;
@@ -3684,10 +3769,8 @@ WebGL2Backend.prototype.computeCascadeMatrices = function (cam, light) {
 };
 WebGL2Backend.prototype.renderShadowCascades = function (list, cascades) {
   var gl = this.gl;
-  gl.enable(gl.DEPTH_TEST);
-  gl.depthFunc(gl.LEQUAL);
-  gl.enable(gl.CULL_FACE);
-  gl.cullFace(gl.FRONT);
+  gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL);
+  gl.enable(gl.CULL_FACE); gl.cullFace(gl.FRONT);
   gl.useProgram(this.shadowProgram);
   var uModel = gl.getUniformLocation(this.shadowProgram, "uModel");
   var uLSM = gl.getUniformLocation(this.shadowProgram, "uLightSpaceMatrix");
@@ -3724,18 +3807,12 @@ WebGL2Backend.prototype.renderFrame = function (camera, list, lights, post, sele
   var gl = this.gl;
   var needW = Math.max(2, gl.drawingBufferWidth || this.width);
   var needH = Math.max(2, gl.drawingBufferHeight || this.height);
-  if (!this.hdrFBO || needW !== this.width || needH !== this.height) {
-    this.requestResize(needW, needH);
-  }
+  if (!this.hdrFBO || needW !== this.width || needH !== this.height) this.requestResize(needW, needH);
   this.commitResize();
-
   this.ibl.ensure();
-
   camera.updateMatrices();
   var t0 = performance.now();
-  this.stats.drawCalls = 0;
-  this.stats.triangles = 0;
-  this.stats.visible = list.length;
+  this.stats.drawCalls = 0; this.stats.triangles = 0; this.stats.visible = list.length;
 
   var dirLight = null;
   for (var li = 0; li < lights.length; li++) {
@@ -3754,10 +3831,8 @@ WebGL2Backend.prototype.renderFrame = function (camera, list, lights, post, sele
   gl.viewport(0, 0, this.width, this.height);
   gl.clearColor(0.04, 0.05, 0.08, 1);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-  gl.enable(gl.DEPTH_TEST);
-  gl.depthFunc(gl.LEQUAL);
-  gl.enable(gl.CULL_FACE);
-  gl.cullFace(gl.BACK);
+  gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL);
+  gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK);
   gl.disable(gl.BLEND);
 
   var tSceneStart = performance.now();
@@ -3768,28 +3843,20 @@ WebGL2Backend.prototype.renderFrame = function (camera, list, lights, post, sele
 
   var src = this.hdrColor;
   if (useHDR && post.bloom.enabled && this.bloomAvailable) {
-    var tB = performance.now();
-    this.runBloom(post.bloom);
-    this.sections.bloom = performance.now() - tB;
+    var tB = performance.now(); this.runBloom(post.bloom); this.sections.bloom = performance.now() - tB;
   } else this.sections.bloom = 0;
 
   if (useHDR && post.ssao.enabled && this.ssaoAvailable) {
-    var tA = performance.now();
-    this.runSSAO(camera, post.ssao);
-    this.sections.other = performance.now() - tA;
+    var tA = performance.now(); this.runSSAO(camera, post.ssao); this.sections.other = performance.now() - tA;
   } else this.sections.other = 0;
 
   if (useHDR && post.taa.enabled && this.taaAvailable && this.motionFBO) {
-    var tT = performance.now();
-    this.renderMotionVectors(camera);
-    src = this.runTAA(post.taa.blend);
-    this.sections.taa = performance.now() - tT;
+    var tT = performance.now(); this.renderMotionVectors(camera); src = this.runTAA(post.taa.blend); this.sections.taa = performance.now() - tT;
   } else this.sections.taa = 0;
 
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   gl.viewport(0, 0, this.width, this.height);
-  gl.disable(gl.DEPTH_TEST);
-  gl.disable(gl.BLEND);
+  gl.disable(gl.DEPTH_TEST); gl.disable(gl.BLEND);
 
   if (post.debugShadow && this.shadowMaps) {
     gl.useProgram(this.shadowDebugProgram);
@@ -3816,7 +3883,6 @@ WebGL2Backend.prototype.renderFrame = function (camera, list, lights, post, sele
     gl.uniform1i(gl.getUniformLocation(this.tonemapProgram, "uAOEnabled"), (post.ssao.enabled && this.ssaoAvailable) ? 1 : 0);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   }
-
   if (gizmo && gizmo.visible) this.drawGizmo(camera, gizmo);
   this.stats.frameTimeMs = performance.now() - t0;
 };
@@ -3824,8 +3890,7 @@ WebGL2Backend.prototype.renderMotionVectors = function (camera) {
   var gl = this.gl;
   gl.bindFramebuffer(gl.FRAMEBUFFER, this.motionFBO);
   gl.viewport(0, 0, this.width, this.height);
-  gl.disable(gl.DEPTH_TEST);
-  gl.disable(gl.BLEND);
+  gl.disable(gl.DEPTH_TEST); gl.disable(gl.BLEND);
   gl.useProgram(this.motionProgram);
   gl.bindVertexArray(this.fullscreenVao);
   gl.activeTexture(gl.TEXTURE0);
@@ -3841,8 +3906,7 @@ WebGL2Backend.prototype.runSSAO = function (camera, params) {
   if (!this.ssaoAvailable) return;
   gl.bindFramebuffer(gl.FRAMEBUFFER, this.ssaoFBO);
   gl.viewport(0, 0, this.width, this.height);
-  gl.disable(gl.DEPTH_TEST);
-  gl.disable(gl.BLEND);
+  gl.disable(gl.DEPTH_TEST); gl.disable(gl.BLEND);
   gl.useProgram(this.ssaoProgram);
   gl.bindVertexArray(this.fullscreenVao);
   gl.activeTexture(gl.TEXTURE0);
@@ -3878,7 +3942,6 @@ WebGL2Backend.prototype.setupPBRUniforms = function (camera, lights, post, casca
   gl.uniform1i(U.uFogEnabled, post.fog.enabled ? 1 : 0);
   gl.uniform1f(U.uFogDensity, post.fog.density);
   gl.uniform3f(U.uFogColor, post.fog.color.x, post.fog.color.y, post.fog.color.z);
-
   if (cascades) {
     for (var c = 0; c < 3; c++) {
       var loc = p.u("uLightSpaceMatrix[" + c + "]");
@@ -3902,13 +3965,11 @@ WebGL2Backend.prototype.setupPBRUniforms = function (camera, lights, post, casca
     var us = U["uShadowMap" + s];
     if (us) gl.uniform1i(us, 4 + s);
   }
-
   if (this.ibl.irradianceMap) {
     gl.activeTexture(gl.TEXTURE8);
     gl.bindTexture(gl.TEXTURE_2D, this.ibl.irradianceMap);
     if (U.uIrradiance) gl.uniform1i(U.uIrradiance, 8);
   }
-
   var count = Math.min(lights.length, 8);
   gl.uniform1i(U.uLightCount, count);
   var typeArr = new Int32Array(8);
@@ -3945,13 +4006,11 @@ WebGL2Backend.prototype.drawObject = function (o, selection) {
   }
   var gpu = this.uploadMesh(o.renderer.mesh);
   gl.bindVertexArray(gpu.vao);
-
   gl.uniformMatrix4fv(U.uModel, false, o.model.m);
   var prevModel = o.prevModel || o.model;
   gl.uniformMatrix4fv(U.uPrevModel, false, prevModel.m);
   var nm = Mat3.normalMatrixFromMat4(o.model.m);
   gl.uniformMatrix3fv(U.uNormalMatrix, false, nm.m);
-
   var m = o.renderer.material;
   gl.uniform4f(U.uBaseColor, m.baseColor.x, m.baseColor.y, m.baseColor.z, m.baseColor.w);
   gl.uniform1f(U.uMetallic, m.metallic);
@@ -4223,9 +4282,7 @@ var GLTFLoader = {
         var binFile = filesByName[name] || filesByName[uri] || filesByName[uri.replace(/^\.\//, "")];
         if (binFile) bin = await binFile.arrayBuffer();
         else glLog("parseGLTF: missing buffer file '" + name + "'");
-      } else {
-        glLog("parseGLTF: buffer[0] has no uri");
-      }
+      } else glLog("parseGLTF: buffer[0] has no uri");
     }
     return GLTFLoader.buildScene(backend, json, bin, filesByName);
   },
@@ -4264,11 +4321,10 @@ var GLTFLoader = {
       if (!acc) return null;
       if (acc.bufferView === undefined) {
         var typeCount0 = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4, MAT2: 4, MAT3: 9, MAT4: 16 }[acc.type] || 1;
-        var zeros = outType === "u16" ? new Uint16Array(acc.count * typeCount0) : new Float32Array(acc.count * typeCount0);
-        return zeros;
+        return outType === "u16" ? new Uint16Array(acc.count * typeCount0) : new Float32Array(acc.count * typeCount0);
       }
       var bv = gltf.bufferViews[acc.bufferView];
-      if (!bv) { glLog("getAccessorData: missing bufferView " + acc.bufferView); return null; }
+      if (!bv) return null;
       var byteOff = (bv.byteOffset || 0) + (acc.byteOffset || 0);
       var typeCount = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4, MAT2: 4, MAT3: 9, MAT4: 16 }[acc.type] || 1;
       var compSize = getComponentSize(acc.componentType);
@@ -4305,10 +4361,9 @@ var GLTFLoader = {
       var sx = Math.hypot(m16[0], m16[1], m16[2]) || 1;
       var sy = Math.hypot(m16[4], m16[5], m16[6]) || 1;
       var sz = Math.hypot(m16[8], m16[9], m16[10]) || 1;
-      var det =
-        m16[0] * (m16[5] * m16[10] - m16[6] * m16[9]) -
-        m16[1] * (m16[4] * m16[10] - m16[6] * m16[8]) +
-        m16[2] * (m16[4] * m16[9] - m16[5] * m16[8]);
+      var det = m16[0] * (m16[5] * m16[10] - m16[6] * m16[9]) -
+                m16[1] * (m16[4] * m16[10] - m16[6] * m16[8]) +
+                m16[2] * (m16[4] * m16[9] - m16[5] * m16[8]);
       if (det < 0) sx = -sx;
       var r00 = m16[0] / sx, r01 = m16[1] / sx, r02 = m16[2] / sx;
       var r10 = m16[4] / sy, r11 = m16[5] / sy, r12 = m16[6] / sy;
@@ -4328,11 +4383,7 @@ var GLTFLoader = {
         var s4 = Math.sqrt(1 + r22 - r00 - r11) * 2;
         qw = (r01 - r10) / s4; qx = (r02 + r20) / s4; qy = (r12 + r21) / s4; qz = 0.25 * s4;
       }
-      return {
-        pos: new Vec3(px, py, pz),
-        rot: new Quat(qx, qy, qz, qw).normalize(),
-        scale: new Vec3(sx, sy, sz)
-      };
+      return { pos: new Vec3(px, py, pz), rot: new Quat(qx, qy, qz, qw).normalize(), scale: new Vec3(sx, sy, sz) };
     }
 
     var glTextures = [];
@@ -4401,9 +4452,7 @@ var GLTFLoader = {
       if (pbr.baseColorTexture && gltf.textures) {
         var ti = pbr.baseColorTexture.index;
         var srcIdx = gltf.textures[ti] && gltf.textures[ti].source;
-        if (srcIdx !== undefined) {
-          mat._pendingTexSrcIdx = srcIdx;
-        }
+        if (srcIdx !== undefined) mat._pendingTexSrcIdx = srcIdx;
       }
       return mat;
     });
@@ -4416,10 +4465,7 @@ var GLTFLoader = {
       var primList = [];
       for (var pi = 0; pi < prims.length; pi++) {
         var prim = prims[pi];
-        if (!prim || !prim.attributes || prim.attributes.POSITION === undefined) {
-          glLog("mesh " + mi + " prim " + pi + ": missing POSITION");
-          continue;
-        }
+        if (!prim || !prim.attributes || prim.attributes.POSITION === undefined) continue;
         var decoded = null;
         if (prim.extensions && prim.extensions.KHR_draco_mesh_compression && DracoDecoder.isAvailable()) {
           var ext = prim.extensions.KHR_draco_mesh_compression;
@@ -4429,14 +4475,10 @@ var GLTFLoader = {
             var byteLen = bvD.byteLength;
             var sliced = bin.slice(byteStart, byteStart + byteLen);
             decoded = DracoDecoder.decode(sliced, ext.attributes);
-            glLog("Draco decoded mesh " + mi + " prim " + pi + ": " + (decoded ? "ok" : "failed"));
           }
         }
         var posA = decoded ? decoded.positions : getAccessorData(prim.attributes.POSITION);
-        if (!posA || posA.length === 0) {
-          glLog("mesh " + mi + " prim " + pi + ": empty positions");
-          continue;
-        }
+        if (!posA || posA.length === 0) continue;
         var nrmA = decoded ? decoded.normals : (prim.attributes.NORMAL !== undefined ? getAccessorData(prim.attributes.NORMAL) : null);
         var uvA = decoded ? decoded.uvs : (prim.attributes.TEXCOORD_0 !== undefined ? getAccessorData(prim.attributes.TEXCOORD_0) : null);
         var jointsA = prim.attributes.JOINTS_0 !== undefined ? getAccessorData(prim.attributes.JOINTS_0, "u16") : null;
@@ -4484,17 +4526,12 @@ var GLTFLoader = {
             var mat = materials[gm.material !== undefined ? gm.material : 0] || materials[0];
             var matCopy = new Material({
               baseColor: new Vec4(mat.baseColor.x, mat.baseColor.y, mat.baseColor.z, mat.baseColor.w),
-              metallic: mat.metallic,
-              roughness: mat.roughness,
+              metallic: mat.metallic, roughness: mat.roughness,
               emissive: mat.emissive ? mat.emissive.clone() : Vec3.zero(),
-              doubleSided: mat.doubleSided,
-              materialType: mat.materialType || 0
+              doubleSided: mat.doubleSided, materialType: mat.materialType || 0
             });
             if (mat._pendingTexSrcIdx !== undefined) matCopy._pendingTexSrcIdx = mat._pendingTexSrcIdx;
-            if (mat.baseTexture) {
-              matCopy.baseTexture = mat.baseTexture;
-              matCopy.baseTextureHash = mat.baseTextureHash;
-            }
+            if (mat.baseTexture) { matCopy.baseTexture = mat.baseTexture; matCopy.baseTextureHash = mat.baseTextureHash; }
             entity.renderer = new MeshRenderer(gm.geo, matCopy);
           }
           attachPrim(e, primList[0]);
@@ -4510,9 +4547,7 @@ var GLTFLoader = {
         var skin = gltf.skins && gltf.skins[n.skin];
         if (skin) {
           var skeleton = new Skeleton();
-          skeleton.joints = (skin.joints || []).map(function (jIdx) {
-            return nodeEntities[jIdx] || null;
-          }).filter(function (j) { return !!j; });
+          skeleton.joints = (skin.joints || []).map(function (jIdx) { return nodeEntities[jIdx] || null; }).filter(function (j) { return !!j; });
           var jointSet = {};
           (skin.joints || []).forEach(function (jIdx, localI) { jointSet[jIdx] = localI; });
           skeleton.parentIndex = (skin.joints || []).map(function (jIdx) {
@@ -4533,13 +4568,9 @@ var GLTFLoader = {
               }
             }
           }
-          while (skeleton.inverseBindMatrices.length < skeleton.joints.length) {
-            skeleton.inverseBindMatrices.push(new Mat4());
-          }
+          while (skeleton.inverseBindMatrices.length < skeleton.joints.length) skeleton.inverseBindMatrices.push(new Mat4());
           e.renderer.skeleton = skeleton;
-          e.children.forEach(function (ch) {
-            if (ch.renderer && !ch.renderer.skeleton) ch.renderer.skeleton = skeleton;
-          });
+          e.children.forEach(function (ch) { if (ch.renderer && !ch.renderer.skeleton) ch.renderer.skeleton = skeleton; });
         }
       }
     });
@@ -4564,19 +4595,10 @@ var GLTFLoader = {
           var stride = ch.target.path === "rotation" ? 4 : (ch.target.path === "translation" || ch.target.path === "scale" ? 3 : 1);
           var targetEntity = nodeEntities[ch.target.node];
           var nodeKey = targetEntity ? targetEntity.id : ch.target.node;
-          clip.tracks.push({
-            node: nodeKey,
-            path: ch.target.path,
-            times: times,
-            values: values,
-            stride: stride,
-            interpolation: sampler.interpolation || "LINEAR"
-          });
+          clip.tracks.push({ node: nodeKey, path: ch.target.path, times: times, values: values, stride: stride, interpolation: sampler.interpolation || "LINEAR" });
         });
         var maxT = 0;
-        clip.tracks.forEach(function (tr) {
-          if (tr.times && tr.times.length) maxT = Math.max(maxT, tr.times[tr.times.length - 1]);
-        });
+        clip.tracks.forEach(function (tr) { if (tr.times && tr.times.length) maxT = Math.max(maxT, tr.times[tr.times.length - 1]); });
         clip.duration = maxT;
         if (clip.tracks.length) clips.push(clip);
       });
@@ -4586,17 +4608,12 @@ var GLTFLoader = {
     function assignTex(mat) {
       if (mat && mat._pendingTexSrcIdx !== undefined) {
         var tex = glTextures[mat._pendingTexSrcIdx];
-        if (tex) {
-          mat.baseTexture = tex;
-          mat.baseTextureHash = tex.hash;
-        }
+        if (tex) { mat.baseTexture = tex; mat.baseTextureHash = tex.hash; }
         delete mat._pendingTexSrcIdx;
       }
     }
     materials.forEach(assignTex);
-    nodeEntities.forEach(function (e) {
-      if (e.renderer && e.renderer.material) assignTex(e.renderer.material);
-    });
+    nodeEntities.forEach(function (e) { if (e.renderer && e.renderer.material) assignTex(e.renderer.material); });
 
     root.traverse(function (e) { EntityRegistry.register(e); });
     var generator = (gltf.asset && gltf.asset.generator) || "";
@@ -4659,13 +4676,10 @@ var OBJLoader = {
       var line = lines[i].trim();
       if (!line || line[0] === "#") continue;
       var parts = line.split(/\s+/);
-      if (parts[0] === "v") {
-        rawPos.push([parseFloat(parts[1]), parseFloat(parts[2]), parseFloat(parts[3])]);
-      } else if (parts[0] === "vn") {
-        rawNrm.push([parseFloat(parts[1]), parseFloat(parts[2]), parseFloat(parts[3])]);
-      } else if (parts[0] === "vt") {
-        rawUv.push([parseFloat(parts[1]), parseFloat(parts[2] || 0)]);
-      } else if (parts[0] === "f") {
+      if (parts[0] === "v") rawPos.push([parseFloat(parts[1]), parseFloat(parts[2]), parseFloat(parts[3])]);
+      else if (parts[0] === "vn") rawNrm.push([parseFloat(parts[1]), parseFloat(parts[2]), parseFloat(parts[3])]);
+      else if (parts[0] === "vt") rawUv.push([parseFloat(parts[1]), parseFloat(parts[2] || 0)]);
+      else if (parts[0] === "f") {
         var face = [];
         for (var j = 1; j < parts.length; j++) {
           var seg = parts[j].split("/");
@@ -4678,9 +4692,7 @@ var OBJLoader = {
           if (vni !== undefined) { if (vni < 0) vni = rawNrm.length + vni; else vni = vni - 1; }
           face.push(addVert(vi, vti, vni));
         }
-        for (var k = 1; k < face.length - 1; k++) {
-          indices.push(face[0], face[k], face[k + 1]);
-        }
+        for (var k = 1; k < face.length - 1; k++) indices.push(face[0], face[k], face[k + 1]);
       }
     }
     if (outPos.length === 0) throw new Error("No vertices in OBJ");
@@ -4695,7 +4707,7 @@ var OBJLoader = {
 
 var OBJExporter = {
   exportScene: function (root) {
-    var out = ["# SDT5D Engine v0.5 OBJ export"];
+    var out = ["# SDT5D Engine v0.6 OBJ export"];
     var vertexOffset = 1;
     root.traverse(function (e) {
       if (!e.renderer) return;
@@ -4734,10 +4746,7 @@ function SpatialLabels(container, canvas) {
 }
 SpatialLabels.prototype.update = function (camera, entities) {
   if (!this.enabled) {
-    if (this.labels.size > 0) {
-      this.labels.forEach(function (el) { el.remove(); });
-      this.labels.clear();
-    }
+    if (this.labels.size > 0) { this.labels.forEach(function (el) { el.remove(); }); this.labels.clear(); }
     return;
   }
   var w = this.canvas.clientWidth;
@@ -4749,11 +4758,7 @@ SpatialLabels.prototype.update = function (camera, entities) {
     if (!e.renderer) continue;
     var wp = e.getModelMatrix().transformPoint(new Vec3(0, 1.2, 0));
     var clip = camera.viewProjectionMatrix.transformVec4(new Vec4(wp.x, wp.y, wp.z, 1));
-    if (clip.w <= 0) {
-      var el = this.labels.get(e.id);
-      if (el) el.style.opacity = "0";
-      continue;
-    }
+    if (clip.w <= 0) { var el = this.labels.get(e.id); if (el) el.style.opacity = "0"; continue; }
     var sx = (clip.x / clip.w * 0.5 + 0.5) * w;
     var sy = (-clip.y / clip.w * 0.5 + 0.5) * h;
     var label = this.labels.get(e.id);
@@ -4770,12 +4775,7 @@ SpatialLabels.prototype.update = function (camera, entities) {
     seen.add(e.id);
   }
   var toDelete = [];
-  this.labels.forEach(function (el, id) {
-    if (!seen.has(id)) {
-      el.remove();
-      toDelete.push(id);
-    }
-  });
+  this.labels.forEach(function (el, id) { if (!seen.has(id)) { el.remove(); toDelete.push(id); } });
   for (var di = 0; di < toDelete.length; di++) this.labels.delete(toDelete[di]);
 };
 
@@ -4783,28 +4783,24 @@ SpatialLabels.prototype.update = function (camera, entities) {
  * AUTO-SAVE
  * ========================================================================== */
 var AutoSave = (function () {
-  var KEY = "sdt5d-autosave-v5";
+  var KEY = "sdt5d-autosave-v6";
   var interval = null;
   return {
     start: function (getSceneFn, ms) {
       this.stop();
       interval = setInterval(function () {
-        try {
-          var data = getSceneFn();
-          localStorage.setItem(KEY, JSON.stringify(data));
-        } catch (e) { glLog("autosave: " + e.message); }
+        try { var data = getSceneFn(); localStorage.setItem(KEY, JSON.stringify(data)); }
+        catch (e) { glLog("autosave: " + e.message); }
       }, ms || 10000);
     },
     stop: function () { if (interval) clearInterval(interval); interval = null; },
-    load: function () {
-      try { var s = localStorage.getItem(KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; }
-    },
+    load: function () { try { var s = localStorage.getItem(KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; } },
     clear: function () { try { localStorage.removeItem(KEY); } catch (e) { } }
   };
 })();
 
 /* ============================================================================
- * CONSOLE  (async-safe)
+ * CONSOLE (async-safe)
  * ========================================================================== */
 var EngineConsole = (function () {
   var logEl = null, inputEl = null, containerEl = null;
@@ -4830,24 +4826,16 @@ var EngineConsole = (function () {
     if (!handlers[name]) { line("Unknown: " + name, true); return; }
     try {
       var ret = handlers[name].fn(args);
-      if (ret && typeof ret.catch === "function") {
-        ret.catch(function (e) { line("Error: " + (e && e.message ? e.message : e), true); });
-      }
+      if (ret && typeof ret.catch === "function") ret.catch(function (e) { line("Error: " + (e && e.message ? e.message : e), true); });
     } catch (e) { line("Error: " + e.message, true); }
   }
   return {
     attach: function (container, log, input) {
       containerEl = container; logEl = log; inputEl = input;
-      input.addEventListener("keydown", function (e) {
-        if (e.key === "Enter") { execute(input.value); input.value = ""; }
-      });
+      input.addEventListener("keydown", function (e) { if (e.key === "Enter") { execute(input.value); input.value = ""; } });
     },
     register: register,
-    toggle: function () {
-      visible = !visible;
-      containerEl.classList.toggle("on", visible);
-      if (visible) inputEl.focus();
-    },
+    toggle: function () { visible = !visible; containerEl.classList.toggle("on", visible); if (visible) inputEl.focus(); },
     isVisible: function () { return visible; },
     log: line
   };
@@ -4865,24 +4853,16 @@ var ArtMerWorld = (function () {
     epochLabel: "Year 0",
     playing: false,
     playSpeed: 3.0,
-    layers: {
-      territory: true,
-      infrastructure: true,
-      population: true,
-      history: true
-    },
-    meta: {
-      civilization: "ArtMer Proto",
-      climate: "temperate",
-      scale: "local-district"
-    },
+    layers: { territory: true, infrastructure: true, population: true, history: true },
+    meta: { civilization: "ArtMer Proto", climate: "temperate", scale: "local-district" },
     log: []
   };
 
   function makeArtMerData(opts) {
     opts = opts || {};
     return {
-      type: opts.type || "marker",
+      type: "ArtMerData",
+      artmerKind: opts.type || "marker",
       civilization: opts.civilization || "ArtMer Proto",
       status: opts.status || "active",
       population: opts.population || 0,
@@ -4893,12 +4873,7 @@ var ArtMerWorld = (function () {
       _runtimeStatus: null
     };
   }
-
-  function setTime(t) {
-    world.time = Math.max(0, Math.min(100, t));
-    world.epochLabel = "Year " + Math.floor(world.time);
-  }
-
+  function setTime(t) { world.time = Math.max(0, Math.min(100, t)); world.epochLabel = "Year " + Math.floor(world.time); }
   function tick(dt) {
     if (!world.playing) return false;
     var next = world.time + dt * world.playSpeed;
@@ -4906,9 +4881,7 @@ var ArtMerWorld = (function () {
     setTime(next);
     return true;
   }
-
   function isLayerVisible(layerName) { return !!world.layers[layerName]; }
-
   function resolveStatus(artmer) {
     if (!artmer) return "active";
     var t = world.time;
@@ -4917,7 +4890,6 @@ var ArtMerWorld = (function () {
     if (artmer.status === "historical" && artmer.founded <= t) return "historical";
     return artmer.status || "active";
   }
-
   function entityVisible(entity) {
     if (!entity.artmer) return true;
     var a = entity.artmer;
@@ -4925,50 +4897,32 @@ var ArtMerWorld = (function () {
     if (!isLayerVisible(layer)) return false;
     var status = resolveStatus(a);
     a._runtimeStatus = status;
-    if (status === "planned") {
-      return isLayerVisible("history") || (layer === "population" || layer === "infrastructure");
-    }
+    if (status === "planned") return isLayerVisible("history") || (layer === "population" || layer === "infrastructure");
     return true;
   }
-
   function entityVisibleByLayer(entity) { return entityVisible(entity); }
-
-  function pushLog(msg) {
-    world.log.push({ t: world.time, msg: msg });
-    if (world.log.length > 50) world.log.shift();
-  }
-
+  function pushLog(msg) { world.log.push({ t: world.time, msg: msg }); if (world.log.length > 50) world.log.shift(); }
   function serialize() {
     return JSON.parse(JSON.stringify({
       id: world.id, name: world.name, schemaVersion: world.schemaVersion,
       time: world.time, layers: world.layers, meta: world.meta, log: world.log
     }));
   }
-
   function apply(data) {
     if (!data) return;
     if (data.id) world.id = data.id;
     if (data.name) world.name = data.name;
     if (data.time !== undefined) setTime(data.time);
-    if (data.layers) {
-      for (var k in data.layers) if (world.layers.hasOwnProperty(k)) world.layers[k] = !!data.layers[k];
-    }
+    if (data.layers) for (var k in data.layers) if (world.layers.hasOwnProperty(k)) world.layers[k] = !!data.layers[k];
     if (data.meta) world.meta = Object.assign({}, world.meta, data.meta);
     if (data.log) world.log = data.log.slice(-50);
   }
-
   return {
     get: function () { return world; },
-    makeData: makeArtMerData,
-    setTime: setTime,
-    tick: tick,
-    isLayerVisible: isLayerVisible,
-    resolveStatus: resolveStatus,
-    entityVisible: entityVisible,
-    entityVisibleByLayer: entityVisibleByLayer,
-    pushLog: pushLog,
-    serialize: serialize,
-    apply: apply
+    makeData: makeArtMerData, setTime: setTime, tick: tick,
+    isLayerVisible: isLayerVisible, resolveStatus: resolveStatus,
+    entityVisible: entityVisible, entityVisibleByLayer: entityVisibleByLayer,
+    pushLog: pushLog, serialize: serialize, apply: apply
   };
 })();
 
@@ -4976,6 +4930,9 @@ var ArtMerWorld = (function () {
  * MAIN APPLICATION
  * ========================================================================== */
 (function main() {
+  if (window.__SDT5D_BOOTED__) { console.warn("[SDT5D] main() skipped — already booted"); return; }
+  window.__SDT5D_BOOTED__ = true;
+
   var canvas = document.getElementById("viewport");
   var diagEl = document.getElementById("diag-window");
   var errBanner = document.getElementById("error-banner");
@@ -5023,20 +4980,10 @@ var ArtMerWorld = (function () {
     errBanner.appendChild(pre);
     var row = document.createElement("div");
     row.style.marginTop = "10px"; row.style.display = "flex"; row.style.gap = "8px";
-    function btn(label, fn) {
-      var b = document.createElement("button");
-      b.textContent = label; b.style.padding = "6px 12px"; b.onclick = fn;
-      row.appendChild(b);
-    }
+    function btn(label, fn) { var b = document.createElement("button"); b.textContent = label; b.style.padding = "6px 12px"; b.onclick = fn; row.appendChild(b); }
     btn("Reload page", function () { location.reload(); });
-    btn("Resume loop", function () {
-      consecutiveFrameErrors = 0; rafHalted = false;
-      errBanner.style.display = "none";
-      requestAnimationFrame(frame);
-    });
-    btn("Copy diagnostics", function () {
-      if (navigator.clipboard) navigator.clipboard.writeText(pre.textContent);
-    });
+    btn("Resume loop", function () { consecutiveFrameErrors = 0; rafHalted = false; errBanner.style.display = "none"; requestAnimationFrame(frame); });
+    btn("Copy diagnostics", function () { if (navigator.clipboard) navigator.clipboard.writeText(pre.textContent); });
     errBanner.appendChild(row);
   }
 
@@ -5102,8 +5049,118 @@ var ArtMerWorld = (function () {
   ];
 
   var root = new Entity("Root");
-  EntityRegistry.register(root);
+  // Entity self-registers with World in its constructor
 
+  /* ============================================================================
+   * ECS SYSTEM REGISTRATION
+   * ========================================================================== */
+  World.registerSystem("preUpdate", 10, function () {
+    World.query(["Transform"]).forEach(function (id) {
+      var e = World.byId(id);
+      if (e) e.transform.dirty = true;
+    });
+  }, "TransformSystem");
+
+  World.registerSystem("update", 10, function (dt) {
+    if (ArtMerWorld.tick(dt)) {
+      if (typeof syncWorldUI === "function") syncWorldUI();
+      if (selection && selection.artmer) renderInspector();
+    }
+  }, "ArtMerTimeSystem");
+
+  World.registerSystem("update", 20, function () {
+    World.query(["ArtMerData"]).forEach(function (id) {
+      var e = World.byId(id);
+      if (e) e._artmerVisible = ArtMerWorld.entityVisibleByLayer(e);
+    });
+  }, "ArtMerVisibilitySystem");
+
+  World.registerSystem("update", 30, function (dt) {
+    if (!activeClip) return;
+    if (animPlaying && !AnimationEditor.state.scrubbing) {
+      animTime += dt * (AnimationEditor.state.playbackRate || 1);
+      if (activeClip.duration > 0) {
+        if (activeClip.loop !== false) {
+          while (animTime > activeClip.duration) animTime -= activeClip.duration;
+          while (animTime < 0) animTime += activeClip.duration;
+        } else if (animTime > activeClip.duration) { animTime = activeClip.duration; animPlaying = false; }
+        else if (animTime < 0) { animTime = 0; animPlaying = false; }
+      }
+    }
+    var sceneMap = {};
+    root.traverse(function (e) { sceneMap[e.id] = e; });
+    activeClip.sample(animTime, sceneMap, activeClip.weight);
+    if (typeof updateAnimPlayheadOnly === "function") updateAnimPlayheadOnly();
+  }, "AnimationSystem");
+
+  World.registerSystem("update", 40, function () {
+    var seen = new Set();
+    World.query(["MeshRenderer"]).forEach(function (id) {
+      var e = World.byId(id);
+      if (!e || !e.renderer || !e.renderer.skeleton) return;
+      var sk = e.renderer.skeleton;
+      if (seen.has(sk.id)) return;
+      seen.add(sk.id);
+      sk.update();
+      sk.uploadBoneTexture(backend);
+    });
+  }, "SkeletonSystem");
+
+  World.registerSystem("postUpdate", 10, function (dt) {
+    if (autoRotate) {
+      autoAngle += dt * 0.3;
+      camera.position.set(Math.sin(autoAngle) * 14, 6, Math.cos(autoAngle) * 14);
+    }
+    camera.updateMatrices();
+    if (post.taa.enabled) {
+      var jx = HALTON_2[jitterIdx % 8] - 0.5;
+      var jy = HALTON_3[jitterIdx % 8] - 0.5;
+      jitterIdx++;
+      camera.setJitter(jx * 1.5 / canvas.width, jy * 1.5 / canvas.height);
+    } else { camera.setJitter(0, 0); jitterIdx = 0; }
+  }, "CameraUpdateSystem");
+
+  World.registerSystem("render", 10, function () {
+    gizmo.update(camera, selection);
+    var allItems = [];
+    var totalMeshes = 0;
+    var visibleEntities = [];
+
+    World.query(["MeshRenderer"]).forEach(function (id) {
+      var e = World.byId(id);
+      if (!e || !e.renderer || !e.renderer.visible || !e.visible) return;
+      if (e.tag && tagVisibility[e.tag] === false) return;
+      if (e._artmerVisible === false) return;
+      totalMeshes++;
+      var model = e.getModelMatrix();
+      var aabb = e.renderer.mesh.bounds.transformed(model);
+      var prevModel = prevModelCache.get(e) || model;
+      allItems.push({ entity: e, renderer: e.renderer, model: model, prevModel: prevModel, worldAABB: aabb });
+    });
+
+    var list;
+    if (post.useBVH) {
+      bvh.build(allItems);
+      list = bvh.queryFrustum(camera.frustum, []);
+    } else {
+      list = [];
+      for (var ai = 0; ai < allItems.length; ai++) {
+        var it = allItems[ai];
+        if (!post.cull || camera.frustum.intersectsAABB(it.worldAABB)) list.push(it);
+      }
+    }
+    backend.stats.culled = totalMeshes - list.length;
+    if (cullEl) cullEl.textContent = "culled: " + backend.stats.culled + (post.useBVH ? " bvh" : "");
+
+    backend.renderFrame(camera, list, lights, post, selection, gizmo);
+
+    var ev = ResourceManager.evict();
+    for (var pi = 0; pi < allItems.length; pi++) prevModelCache.set(allItems[pi].entity, allItems[pi].model);
+    for (var li = 0; li < list.length; li++) visibleEntities.push(list[li].entity);
+    labels.update(camera, visibleEntities);
+  }, "RenderSystem");
+
+  /* ============== Scene content ============== */
   var groundGeo = Primitives.plane(30, 8);
   var cubeGeo = Primitives.cube(1.5);
   var sphereGeo = Primitives.sphere(0.9, 32, 16);
@@ -5116,10 +5173,10 @@ var ArtMerWorld = (function () {
   ground.renderer.castShadow = false;
   ground.tag = "territory";
   ground.artmer = ArtMerWorld.makeData({ type: "territory", layer: "territory", status: "active", notes: "Base terrain of ArtMer district" });
-  root.addChild(ground); EntityRegistry.register(ground);
+  root.addChild(ground);
 
   var group = new Entity("ArtMer District"); group.tag = "content";
-  root.addChild(group); EntityRegistry.register(group);
+  root.addChild(group);
 
   var settlement = new Entity("Settlement · Core");
   settlement.renderer = new MeshRenderer(cubeGeo, new Material({ baseColor: new Vec4(0.85, 0.55, 0.22, 1), metallic: 0.15, roughness: 0.5 }));
@@ -5127,14 +5184,14 @@ var ArtMerWorld = (function () {
   settlement.transform.rotation = Quat.fromEuler(0, 0.3, 0);
   settlement.tag = "settlement";
   settlement.artmer = ArtMerWorld.makeData({ type: "settlement", layer: "population", civilization: "ArtMer Proto", status: "active", population: 420, founded: 0, notes: "Primary settlement core" });
-  group.addChild(settlement); EntityRegistry.register(settlement);
+  group.addChild(settlement);
 
   var infraNode = new Entity("Infra · Hub");
   infraNode.renderer = new MeshRenderer(sphereGeo, new Material({ baseColor: new Vec4(0.25, 0.65, 0.95, 1), metallic: 0.7, roughness: 0.25 }));
   infraNode.transform.position.set(2.8, 0.9, 1.2);
   infraNode.tag = "infrastructure";
   infraNode.artmer = ArtMerWorld.makeData({ type: "infra", layer: "infrastructure", status: "active", founded: 5, notes: "Energy / logistics node — online from Year 5" });
-  group.addChild(infraNode); EntityRegistry.register(infraNode);
+  group.addChild(infraNode);
 
   var poi = new Entity("POI · Archive");
   poi.renderer = new MeshRenderer(smallCubeGeo, new Material({ baseColor: new Vec4(0.72, 0.35, 0.95, 1), metallic: 0.4, roughness: 0.35 }));
@@ -5142,21 +5199,21 @@ var ArtMerWorld = (function () {
   poi.transform.scale.set(1.4, 1.4, 1.4);
   poi.tag = "poi";
   poi.artmer = ArtMerWorld.makeData({ type: "poi", layer: "history", status: "historical", founded: 0, notes: "Historical archive marker" });
-  group.addChild(poi); EntityRegistry.register(poi);
+  group.addChild(poi);
 
   var ruins = new Entity("Ruins · Old Outpost");
   ruins.renderer = new MeshRenderer(Primitives.cube(0.7), new Material({ baseColor: new Vec4(0.45, 0.40, 0.35, 1), metallic: 0.05, roughness: 0.9 }));
   ruins.transform.position.set(4.5, 0.4, -2.5);
   ruins.tag = "settlement";
   ruins.artmer = ArtMerWorld.makeData({ type: "settlement", layer: "population", status: "active", population: 80, founded: 8, abandonedAt: 40, notes: "Abandoned after Year 40" });
-  group.addChild(ruins); EntityRegistry.register(ruins);
+  group.addChild(ruins);
 
   var future = new Entity("Planned · New District");
   future.renderer = new MeshRenderer(Primitives.cube(1.0), new Material({ baseColor: new Vec4(0.3, 0.85, 0.55, 1), metallic: 0.2, roughness: 0.4 }));
   future.transform.position.set(-5, 0.55, 3);
   future.tag = "settlement";
   future.artmer = ArtMerWorld.makeData({ type: "settlement", layer: "population", status: "planned", population: 0, founded: 60, notes: "Planned expansion — Year 60+" });
-  group.addChild(future); EntityRegistry.register(future);
+  group.addChild(future);
 
   var waterDisc = new Entity("Water · Reservoir");
   waterDisc.renderer = new MeshRenderer(groundGeo, new Material({ baseColor: new Vec4(0.12, 0.42, 0.62, 1), metallic: 0.0, roughness: 0.06, materialType: 1 }));
@@ -5164,7 +5221,7 @@ var ArtMerWorld = (function () {
   waterDisc.transform.position.set(0, 0.02, 5); waterDisc.transform.scale.set(0.35, 1, 0.35);
   waterDisc.tag = "territory";
   waterDisc.artmer = ArtMerWorld.makeData({ type: "territory", layer: "territory", founded: 0, notes: "Water body sample" });
-  group.addChild(waterDisc); EntityRegistry.register(waterDisc);
+  group.addChild(waterDisc);
 
   var PALETTE_8 = [
     [0.92, 0.20, 0.16], [0.16, 0.42, 0.88], [0.98, 0.80, 0.10], [0.20, 0.68, 0.36],
@@ -5177,7 +5234,7 @@ var ArtMerWorld = (function () {
     s.transform.position.set(-4 + i * 1.5, 0.35, -1.8);
     s.tag = "settlement";
     s.artmer = ArtMerWorld.makeData({ type: "settlement", layer: "population", population: 40 + i * 15, status: "active", founded: i * 3 });
-    group.addChild(s); EntityRegistry.register(s);
+    group.addChild(s);
   }
 
   var MATERIAL_PRESETS = {
@@ -5212,7 +5269,6 @@ var ArtMerWorld = (function () {
     }
     e.transform.position.set((Math.random() - 0.5) * 3, 1.2, (Math.random() - 0.5) * 3);
     e.tag = "content";
-    EntityRegistry.register(e);
     var parent = (selection && selection !== ground) ? selection : root;
     history.execute(new CommandAdd(parent, e));
     select(e);
@@ -5232,7 +5288,6 @@ var ArtMerWorld = (function () {
     copy.transform.rotation = src.transform.rotation.clone();
     copy.transform.scale.copy(src.transform.scale);
     if (src.renderer) copy.renderer = new MeshRenderer(src.renderer.mesh, src.renderer.material);
-    EntityRegistry.register(copy);
     history.execute(new CommandAdd(src.parent || root, copy));
     select(copy);
     renderTree(); renderInspector(); renderTagGrid();
@@ -5251,7 +5306,6 @@ var ArtMerWorld = (function () {
       copy.transform.rotation = src.transform.rotation.clone();
       copy.transform.scale.copy(src.transform.scale);
       if (src.renderer) copy.renderer = new MeshRenderer(src.renderer.mesh, src.renderer.material);
-      EntityRegistry.register(copy);
       copies.push(copy);
     }
     history.execute(new CommandAddMany(parent, copies));
@@ -5290,7 +5344,8 @@ var ArtMerWorld = (function () {
       }
       if (e.artmer) {
         o.artmer = {
-          type: e.artmer.type, civilization: e.artmer.civilization, status: e.artmer.status,
+          type: e.artmer.artmerKind || e.artmer.type,
+          civilization: e.artmer.civilization, status: e.artmer.status,
           population: e.artmer.population, founded: e.artmer.founded,
           abandonedAt: e.artmer.abandonedAt, layer: e.artmer.layer, notes: e.artmer.notes
         };
@@ -5312,9 +5367,12 @@ var ArtMerWorld = (function () {
   function deserializeScene(data) {
     ResourceManager.disposeScene();
     backend.meshCache.clear();
-    while (root.children.length) root.removeChild(root.children[0]);
-    EntityRegistry.clear();
-    EntityRegistry.register(root);
+    // Detach children without nuking root (root must stay registered in World)
+    while (root.children.length) {
+      var c = root.children[0];
+      root.removeChild(c);
+      World.unregisterEntity(c);
+    }
     if (data.geometries) GeometryRegistry.loadBank(data.geometries);
     function build(sn, parent) {
       var e = new Entity(sn.name);
@@ -5333,7 +5391,6 @@ var ArtMerWorld = (function () {
         }));
       }
       if (sn.artmer) e.artmer = ArtMerWorld.makeData(sn.artmer);
-      EntityRegistry.register(e);
       parent.addChild(e);
       (sn.children || []).forEach(function (c) { build(c, e); });
     }
@@ -5436,7 +5493,6 @@ var ArtMerWorld = (function () {
             var e2 = new Entity("OBJ_" + f.name.replace(/\.[^.]+$/, ""));
             e2.renderer = new MeshRenderer(geo, new Material({ baseColor: new Vec4(0.7, 0.7, 0.72, 1), metallic: 0.1, roughness: 0.7 }));
             e2.tag = "content";
-            EntityRegistry.register(e2);
             AssetLoadPipeline.postProcessLoadedRoot(e2, { blenderYUp: true, sourceKind: "obj", applyImportScale: true, fixScale: true });
             history.execute(new CommandAdd(root, e2));
             select(e2);
@@ -5454,26 +5510,19 @@ var ArtMerWorld = (function () {
             var pass2 = window.prompt("Material vault passphrase:");
             if (pass2) {
               var res2 = await SecureMaterialVault.importEncrypted(f, pass2, root);
-              glLog("Secure materials applied: " + res2.applied + "/" + res2.count);
               var st = document.getElementById("secure-mat-status");
               if (st) st.textContent = "Vault OK · " + res2.applied + " materials applied";
               renderInspector();
             }
-          } else if (kind === "bin") {
-            glLog("Standalone .bin ignored — select with .gltf");
-          } else if (kind === "ktx2") {
-            glLog("Standalone .ktx2 ignored — select with .gltf");
+          } else if (kind === "bin" || kind === "ktx2") {
+            glLog("Standalone " + kind + " ignored — select with .gltf");
           } else {
             throw new Error("Unsupported: " + f.name + " (use .json .obj .gltf .glb .sdtanim .sdtmat)");
           }
         }
       }
-    } catch (err) {
-      showError("Load failed", err);
-    } finally {
-      hideLoading();
-      e.target.value = "";
-    }
+    } catch (err) { showError("Load failed", err); }
+    finally { hideLoading(); e.target.value = ""; }
   };
 
   function exportActiveAnimations() {
@@ -5554,10 +5603,7 @@ var ArtMerWorld = (function () {
       activeClip = activeClips[0] || null;
       animTime = 0; animPlaying = true;
       if (activeClips.length) {
-        activeClips.forEach(function (c) {
-          if (!c.hash) c.computeHash();
-          ResourceManager.put("animation", c.hash, c, AnimationIO.estimateClipBytes(c));
-        });
+        activeClips.forEach(function (c) { if (!c.hash) c.computeHash(); ResourceManager.put("animation", c.hash, c, AnimationIO.estimateClipBytes(c)); });
         AnimationIO.annotateNodeNames(activeClips, result.root);
       }
       renderTree(); renderInspector(); renderAnimPanel(); renderTagGrid();
@@ -5685,7 +5731,7 @@ var ArtMerWorld = (function () {
       mediaRecorder.ondataavailable = function (ev) { if (ev.data && ev.data.size) recChunks.push(ev.data); };
       mediaRecorder.onstop = function () {
         if (recBadge) recBadge.classList.remove("on");
-        document.getElementById("btn-export-webm").textContent = "● Rec";
+        document.getElementById("btn-export-webm").textContent = "Rec";
         var blob = new Blob(recChunks, { type: (mime || "video/webm").split(";")[0] });
         MediaCodecHub.setLastRecording(blob, { mime: mime || blob.type, source: "viewport", fps: fps, bitrateMb: brMb, bytes: blob.size });
         var avSt = document.getElementById("av-status");
@@ -5697,7 +5743,7 @@ var ArtMerWorld = (function () {
       };
       mediaRecorder.start(200);
       if (recBadge) recBadge.classList.add("on");
-      document.getElementById("btn-export-webm").textContent = "■ Stop";
+      document.getElementById("btn-export-webm").textContent = "Stop";
       glLog("Recording · " + (mime || "default") + " @ " + fps + " fps · " + brMb + " Mb/s");
     } catch (err) { showError("Recording failed", err); }
   };
@@ -5712,7 +5758,6 @@ var ArtMerWorld = (function () {
         var e2 = new Entity("OBJ_" + f.name.replace(/\.[^.]+$/, ""));
         e2.renderer = new MeshRenderer(geo, new Material({ baseColor: new Vec4(0.7, 0.7, 0.72, 1), metallic: 0.1, roughness: 0.7 }));
         e2.tag = "content";
-        EntityRegistry.register(e2);
         if (BlenderImport.objYUp) BlenderImport.applyZUpToYUp(e2);
         if (BlenderImport.scale !== 1) {
           var sc = BlenderImport.scale;
@@ -5846,7 +5891,8 @@ var ArtMerWorld = (function () {
       var div = document.createElement("div");
       div.className = "tree-item" + (selection === e ? " selected" : "") + (multiSelection.indexOf(e) >= 0 && selection !== e ? " multi" : "");
       div.style.paddingLeft = (6 + depth * 12) + "px";
-      var icon = e.renderer ? (e.renderer.mesh === sphereGeo ? "◉" : "▣") : "○";
+      div.setAttribute("role", "treeitem");
+      var icon = e.renderer ? (e.renderer.mesh === sphereGeo ? "O" : "[]") : "-";
       var nameSpan = document.createElement("span");
       nameSpan.textContent = icon + " " + e.name;
       nameSpan.style.flex = "1";
@@ -5854,7 +5900,7 @@ var ArtMerWorld = (function () {
       if (e !== root) {
         var vis = document.createElement("span");
         vis.className = "vis-toggle";
-        vis.textContent = e.visible ? "👁" : "◌";
+        vis.textContent = e.visible ? "on" : "off";
         vis.onclick = function (ev) { ev.stopPropagation(); e.visible = !e.visible; renderTree(); };
         div.appendChild(vis);
       }
@@ -5913,7 +5959,7 @@ var ArtMerWorld = (function () {
       (e.artmer ? (function () {
         var rt = ArtMerWorld.resolveStatus(e.artmer);
         return '<div class="group-header" style="margin-top:10px">ArtMer Data</div>' +
-        '<div class="field"><label>Type</label><div class="artmer-status">' + e.artmer.type + ' <span class="artmer-tag">' + (e.artmer.layer || "") + '</span></div></div>' +
+        '<div class="field"><label>Type</label><div class="artmer-status">' + (e.artmer.artmerKind || e.artmer.type) + ' <span class="artmer-tag">' + (e.artmer.layer || "") + '</span></div></div>' +
         '<div class="field"><label>Runtime Status</label><div class="artmer-status" style="color:' +
           (rt === "active" ? "var(--ok)" : rt === "planned" ? "var(--warn)" : rt === "abandoned" ? "var(--danger)" : "#c4a0ff") +
           '">' + rt + ' @ t=' + Math.floor(ArtMerWorld.get().time) + '</div></div>' +
@@ -5974,9 +6020,7 @@ var ArtMerWorld = (function () {
       if (texUrlEl) texUrlEl.onchange = function () {
         var url = this.value.trim(); if (!url) return;
         Texture2D.loadFromURL(backend, url).then(function (tex) {
-          if (e.renderer.material.baseTextureHash) {
-            ResourceManager.release("texture", e.renderer.material.baseTextureHash);
-          }
+          if (e.renderer.material.baseTextureHash) ResourceManager.release("texture", e.renderer.material.baseTextureHash);
           e.renderer.material.baseTexture = tex;
           e.renderer.material.baseTextureHash = tex.hash;
           ResourceManager.put("texture", tex.hash, tex, tex.estimateBytes());
@@ -6030,7 +6074,6 @@ var ArtMerWorld = (function () {
     var selTr = ed.getTrack(activeClip, st.selectedTrack);
 
     var html = '<div class="anim-editor">';
-
     html += '<ul class="anim-list">';
     for (var i = 0; i < activeClips.length; i++) {
       var c = activeClips[i];
@@ -6038,25 +6081,22 @@ var ArtMerWorld = (function () {
         (c.name || ("clip" + i)) + " · " + (c.duration || 0).toFixed(2) + "s</li>";
     }
     html += "</ul>";
-
     html += '<div class="anim-toolbar">' +
-      '<button id="ae-to-start" title="Go to start">⏮</button>' +
-      '<button id="ae-prev-key" title="Previous key">⏪</button>' +
-      '<button id="ae-play" class="' + (animPlaying ? "on" : "") + '" title="Play / Pause">' + (animPlaying ? "⏸" : "▶") + "</button>" +
-      '<button id="ae-next-key" title="Next key">⏩</button>' +
-      '<button id="ae-to-end" title="Go to end">⏭</button>' +
-      '<button id="ae-stop" title="Stop">⏹</button>' +
+      '<button id="ae-to-start" title="Go to start">|&lt;</button>' +
+      '<button id="ae-prev-key" title="Previous key">&lt;&lt;</button>' +
+      '<button id="ae-play" class="' + (animPlaying ? "on" : "") + '" title="Play / Pause">' + (animPlaying ? "||" : ">") + "</button>" +
+      '<button id="ae-next-key" title="Next key">&gt;&gt;</button>' +
+      '<button id="ae-to-end" title="Go to end">&gt;|</button>' +
+      '<button id="ae-stop" title="Stop">[]</button>' +
       '</div>';
     html += '<div class="anim-toolbar">' +
-      '<button id="ae-record" title="Key selected entity pose at playhead">● Key</button>' +
+      '<button id="ae-record" title="Key selected entity pose at playhead">Key</button>' +
       '<button id="ae-insert" title="Insert key on selected track">+ Key</button>' +
-      '<button id="ae-delete-key" title="Delete selected key">⌫ Key</button>' +
+      '<button id="ae-delete-key" title="Delete selected key">- Key</button>' +
       '<button id="ae-new-clip" title="New empty clip">+ Clip</button>' +
       '</div>';
-
     html += '<div class="anim-time-readout" id="ae-time-label">t = ' + animTime.toFixed(3) + " / " + dur.toFixed(3) +
-      " · rate " + st.playbackRate.toFixed(2) + "×" + (st.dirty ? " · edited" : "") + "</div>";
-
+      " · rate " + st.playbackRate.toFixed(2) + "x" + (st.dirty ? " · edited" : "") + "</div>";
     html += '<div class="anim-timeline-wrap" id="ae-timeline" title="Scrub timeline">' +
       '<div class="anim-timeline-track" id="ae-timeline-track">';
     if (selTr && selTr.times) {
@@ -6067,20 +6107,15 @@ var ArtMerWorld = (function () {
       }
     }
     html += '</div><div class="anim-playhead" id="ae-playhead" style="left:' + (tNorm * 100) + '%"></div></div>';
-
     html += '<label class="row"><input id="cbAnimPlay" type="checkbox" ' + (animPlaying ? "checked" : "") + " /> Playing (live preview)</label>";
     html += '<label class="row">Time <input type="range" id="rg-anim-time" min="0" max="' + dur + '" step="0.001" value="' + Math.min(animTime, dur) + '" /></label>';
     html += '<label class="row">Rate <input type="range" id="rg-anim-rate" min="0.1" max="2" step="0.05" value="' + st.playbackRate + '" /></label>';
-    html += '<label class="row">Weight <input type="range" id="rg-anim-weight" min="0" max="1" step="0.05" value="' +
-      (activeClip.weight !== undefined ? activeClip.weight : 1) + '" /></label>';
+    html += '<label class="row">Weight <input type="range" id="rg-anim-weight" min="0" max="1" step="0.05" value="' + (activeClip.weight !== undefined ? activeClip.weight : 1) + '" /></label>';
     html += '<label class="row"><input id="cbAnimLoop" type="checkbox" ' + (activeClip.loop !== false ? "checked" : "") + " /> Loop</label>";
     html += '<label class="row"><input id="cbAnimSnap" type="checkbox" ' + (st.snap ? "checked" : "") + " /> Snap 30 fps</label>";
-
     html += '<div class="group-header" style="margin-top:8px">Tracks (' + tracks.length + ")</div>";
     html += '<div class="anim-tracks" id="ae-tracks">';
-    if (!tracks.length) {
-      html += '<div class="hint" style="padding:6px">No tracks — select an object and press ● Key</div>';
-    }
+    if (!tracks.length) html += '<div class="hint" style="padding:6px">No tracks — select an object and press Key</div>';
     for (var ti = 0; ti < tracks.length; ti++) {
       var tr = tracks[ti];
       var label = (tr.nodeName || ("#" + tr.node)) + " · " + tr.path;
@@ -6096,7 +6131,6 @@ var ArtMerWorld = (function () {
       html += "</div></div>";
     }
     html += "</div>";
-
     if (selTr && st.selectedKey >= 0) {
       var key = ed.readKey(selTr, st.selectedKey);
       if (key) {
@@ -6114,12 +6148,10 @@ var ArtMerWorld = (function () {
     } else {
       html += '<div class="hint" style="margin-top:6px">Select a keyframe diamond to edit values</div>';
     }
-
     html += '<div class="hint" style="margin-top:6px">Cache ' + AnimationIO.cacheStats().hits + "/" +
       (AnimationIO.cacheStats().hits + AnimationIO.cacheStats().misses) +
       " · Live preview samples every frame</div>";
     html += "</div>";
-
     animPanel.innerHTML = html;
 
     animPanel.querySelectorAll(".anim-list li").forEach(function (li) {
@@ -6138,14 +6170,12 @@ var ArtMerWorld = (function () {
       updateAnimPlayheadOnly();
       sampleActiveClipNow();
     }
-
     function sampleActiveClipNow() {
       if (!activeClip) return;
       var sceneMap = {};
       root.traverse(function (e) { sceneMap[e.id] = e; });
       activeClip.sample(animTime, sceneMap, activeClip.weight);
     }
-
     var tl = document.getElementById("ae-timeline");
     if (tl) {
       st._scrubDur = dur;
@@ -6177,12 +6207,11 @@ var ArtMerWorld = (function () {
             var cb = document.getElementById("cbAnimPlay");
             if (cb) cb.checked = false;
             var playBtn = document.getElementById("ae-play");
-            if (playBtn) { playBtn.textContent = "▶"; playBtn.classList.remove("on"); }
+            if (playBtn) { playBtn.textContent = ">"; playBtn.classList.remove("on"); }
           }
         });
       }
     }
-
     animPanel.querySelectorAll(".anim-key-mark").forEach(function (mk) {
       mk.onmousedown = function (ev) {
         ev.stopPropagation();
@@ -6195,7 +6224,6 @@ var ArtMerWorld = (function () {
         renderAnimPanel();
       };
     });
-
     animPanel.querySelectorAll(".anim-track-row").forEach(function (row) {
       row.querySelector(".anim-track-label").onclick = function () {
         st.selectedTrack = +row.dataset.ti;
@@ -6214,11 +6242,7 @@ var ArtMerWorld = (function () {
         };
       }
     });
-
-    function bindBtn(id, fn) {
-      var el = document.getElementById(id);
-      if (el) el.onclick = fn;
-    }
+    function bindBtn(id, fn) { var el = document.getElementById(id); if (el) el.onclick = fn; }
     bindBtn("ae-play", function () { animPlaying = !animPlaying; renderAnimPanel(); });
     bindBtn("ae-stop", function () { animPlaying = false; animTime = 0; sampleActiveClipNow(); renderAnimPanel(); });
     bindBtn("ae-to-start", function () { seek(0); renderAnimPanel(); });
@@ -6290,9 +6314,7 @@ var ArtMerWorld = (function () {
       var tr = ed.getTrack(activeClip, st.selectedTrack);
       if (!tr || st.selectedKey < 0) return;
       var vals = [];
-      animPanel.querySelectorAll(".ae-key-val").forEach(function (inp) {
-        vals[+inp.dataset.vi] = parseFloat(inp.value) || 0;
-      });
+      animPanel.querySelectorAll(".ae-key-val").forEach(function (inp) { vals[+inp.dataset.vi] = parseFloat(inp.value) || 0; });
       ed.writeKeyValues(tr, st.selectedKey, vals);
       var tEl = document.getElementById("ae-key-time");
       if (tEl) {
@@ -6307,7 +6329,6 @@ var ArtMerWorld = (function () {
       sampleActiveClipNow();
       renderAnimPanel();
     });
-
     var cb = document.getElementById("cbAnimPlay");
     if (cb) cb.onchange = function () { animPlaying = this.checked; renderAnimPanel(); };
     var scr = document.getElementById("rg-anim-time");
@@ -6332,7 +6353,7 @@ var ArtMerWorld = (function () {
     var tNorm = Math.min(1, Math.max(0, animTime / dur));
     if (ph) ph.style.left = (tNorm * 100) + "%";
     if (label) label.textContent = "t = " + animTime.toFixed(3) + " / " + dur.toFixed(3) +
-      " · rate " + AnimationEditor.state.playbackRate.toFixed(2) + "×" +
+      " · rate " + AnimationEditor.state.playbackRate.toFixed(2) + "x" +
       (AnimationEditor.state.dirty ? " · edited" : "");
     if (scr && document.activeElement !== scr) scr.value = String(animTime);
     if (badge) {
@@ -6353,12 +6374,12 @@ var ArtMerWorld = (function () {
     bookmarks.forEach(function (b, i) {
       var li = document.createElement("li");
       var nameSpan = document.createElement("span");
-      nameSpan.textContent = "📷 " + b.name;
+      nameSpan.textContent = "Cam: " + b.name;
       nameSpan.style.flex = "1";
       li.appendChild(nameSpan);
       li.onclick = function () { camera.position.copy(b.pos); camera.target.copy(b.target); };
       var del = document.createElement("span");
-      del.textContent = "✕";
+      del.textContent = "x";
       del.style.cursor = "pointer";
       del.style.color = "#e05555";
       del.onclick = function (ev) { ev.stopPropagation(); bookmarks.splice(i, 1); renderBookmarks(); };
@@ -6426,7 +6447,6 @@ var ArtMerWorld = (function () {
       e.renderer = new MeshRenderer(Primitives.cube(1.0 + i * 0.001), new Material({ baseColor: new Vec4(0.5, 0.5, 0.5, 1) }));
       e.renderer.mesh.hash = null;
       GeometryRegistry.register(e.renderer.mesh);
-      EntityRegistry.register(e);
       root.addChild(e);
       backend.uploadMesh(e.renderer.mesh);
       await new Promise(function (r) { requestAnimationFrame(r); });
@@ -6443,9 +6463,34 @@ var ArtMerWorld = (function () {
     return { baseline: baseline, finalBytes: finalBytes, growth: growth };
   };
 
+  /* ECS leak smoke test */
+  window.__leakTestECS = async function (cycles, logFn) {
+    cycles = cycles || 100;
+    logFn = logFn || function () {};
+    var baseline = World.stats();
+    logFn("baseline entities=" + baseline.entities + " types=" + baseline.types);
+    for (var i = 0; i < cycles; i++) {
+      var e = new Entity("ecs_leak_" + i);
+      e.renderer = new MeshRenderer(Primitives.cube(1.0 + i * 0.001), new Material({ baseColor: new Vec4(0.5, 0.5, 0.5, 1) }));
+      e.light = new LightComponent("point", { intensity: 1 });
+      e.artmer = ArtMerWorld.makeData({ type: "poi" });
+      if (!World.hasComponent(e, "Transform"))    throw new Error("missing Transform");
+      if (!World.hasComponent(e, "MeshRenderer")) throw new Error("missing MeshRenderer");
+      if (!World.hasComponent(e, "Light"))        throw new Error("missing Light");
+      if (!World.hasComponent(e, "ArtMerData"))   throw new Error("missing ArtMerData");
+      World.unregisterEntity(e);
+    }
+    var final = World.stats();
+    var growth = (final.entities - baseline.entities) / Math.max(1, baseline.entities || 1);
+    logFn("final entities=" + final.entities + " growth=" + (growth * 100).toFixed(2) + "%");
+    var pass = final.entities === baseline.entities;
+    logFn(pass ? "PASS" : "FAIL (entity leak)");
+    return { baseline: baseline, final: final, pass: pass };
+  };
+
   EngineConsole.attach(consoleEl, consoleLogEl, consoleInputEl);
   EngineConsole.register("help", function () {
-    EngineConsole.log("commands: help, spawn, del, pos, rot, scale, cam, target, preset, clear, time, layer, world, mem, res, leak, pin, anim, vault", false);
+    EngineConsole.log("commands: help, spawn, del, pos, rot, scale, cam, target, preset, clear, time, layer, world, mem, res, leak, pin, anim, vault, ecs", false);
   }, "list commands");
   EngineConsole.register("anim", function (args) {
     if (args[0] === "list") {
@@ -6462,8 +6507,14 @@ var ArtMerWorld = (function () {
   }, "anim list|export|cache");
   EngineConsole.register("vault", function (args) {
     EngineConsole.log("Secure material vault: AES-256-GCM + PBKDF2 · schema " + SecureMaterialVault.SCHEMA);
-    EngineConsole.log("Use 🔒 Mats button or Import material vault. PQC KEM fields reserved in header.");
+    EngineConsole.log("Use Mats button or Import material vault. PQC KEM fields reserved in header.");
   }, "vault — secure material info");
+  EngineConsole.register("ecs", function (args) {
+    if (args[0] === "dump")  { World.dump(); return; }
+    if (args[0] === "stats") { EngineConsole.log(JSON.stringify(World.stats(), null, 2)); return; }
+    if (args[0] === "leak")  { window.__leakTestECS(100, function (m) { EngineConsole.log(m); }); return; }
+    EngineConsole.log("ecs dump | stats | leak");
+  }, "ecs dump|stats|leak — ECS diagnostics");
   EngineConsole.register("spawn", function (args) {
     var kind = args[0] || "cube";
     addEntity("Console_" + kind, kind === "sphere" ? "sphere" : (kind === "empty" ? "empty" : "cube"));
@@ -6536,7 +6587,7 @@ var ArtMerWorld = (function () {
       var cb = document.getElementById("cbAnimPlay");
       if (cb) cb.checked = animPlaying;
       var playBtn = document.getElementById("ae-play");
-      if (playBtn) { playBtn.textContent = animPlaying ? "⏸" : "▶"; playBtn.classList.toggle("on", animPlaying); }
+      if (playBtn) { playBtn.textContent = animPlaying ? "||" : ">"; playBtn.classList.toggle("on", animPlaying); }
     }
     if ((e.key === "k" || e.key === "K") && activeClip && selection && selection !== root) {
       var paths = ["translation", "rotation", "scale"];
@@ -6750,92 +6801,10 @@ var ArtMerWorld = (function () {
       lastTime = now;
       syncSize();
 
-      if (ArtMerWorld.tick(dt)) {
-        syncWorldUI();
-        if (selection && selection.artmer) renderInspector();
-      }
-
-      if (autoRotate) {
-        autoAngle += dt * 0.3;
-        camera.position.set(Math.sin(autoAngle) * 14, 6, Math.cos(autoAngle) * 14);
-      }
-
-      if (activeClip && (animPlaying || AnimationEditor.state.scrubbing)) {
-        if (animPlaying && !AnimationEditor.state.scrubbing) {
-          animTime += dt * (AnimationEditor.state.playbackRate || 1);
-          if (activeClip.duration > 0) {
-            if (activeClip.loop !== false) {
-              while (animTime > activeClip.duration) animTime -= activeClip.duration;
-              while (animTime < 0) animTime += activeClip.duration;
-            } else if (animTime > activeClip.duration) {
-              animTime = activeClip.duration;
-              animPlaying = false;
-            } else if (animTime < 0) {
-              animTime = 0;
-              animPlaying = false;
-            }
-          }
-        }
-        var sceneMap = {};
-        root.traverse(function (e) { sceneMap[e.id] = e; });
-        activeClip.sample(animTime, sceneMap, activeClip.weight);
-        updateAnimPlayheadOnly();
-      } else if (activeClip) {
-        updateAnimPlayheadOnly();
-      }
-
-      var allSkeletons = [];
-      root.traverse(function (e) { if (e.renderer && e.renderer.skeleton) allSkeletons.push(e.renderer.skeleton); });
-      for (var si = 0; si < allSkeletons.length; si++) {
-        allSkeletons[si].update();
-        allSkeletons[si].uploadBoneTexture(backend);
-      }
-
-      camera.updateMatrices();
-      if (post.taa.enabled) {
-        var jx = HALTON_2[jitterIdx % 8] - 0.5;
-        var jy = HALTON_3[jitterIdx % 8] - 0.5;
-        jitterIdx++;
-        camera.setJitter(jx * 1.5 / canvas.width, jy * 1.5 / canvas.height);
-      } else { camera.setJitter(0, 0); jitterIdx = 0; }
-
-      gizmo.update(camera, selection);
-
-      var allItems = [];
-      var totalMeshes = 0;
-      var visibleEntities = [];
-      root.traverse(function (e) {
-        if (!e.renderer || !e.renderer.visible || !e.visible) return;
-        if (e.tag && tagVisibility[e.tag] === false) return;
-        if (!ArtMerWorld.entityVisibleByLayer(e)) return;
-        totalMeshes++;
-        var model = e.getModelMatrix();
-        var aabb = e.renderer.mesh.bounds.transformed(model);
-        var prevModel = prevModelCache.get(e) || model;
-        allItems.push({ entity: e, renderer: e.renderer, model: model, prevModel: prevModel, worldAABB: aabb });
-      });
-
-      var list;
-      if (post.useBVH) {
-        bvh.build(allItems);
-        list = bvh.queryFrustum(camera.frustum, []);
-      } else {
-        list = [];
-        for (var ai = 0; ai < allItems.length; ai++) {
-          var it = allItems[ai];
-          if (!post.cull || camera.frustum.intersectsAABB(it.worldAABB)) list.push(it);
-        }
-      }
-      backend.stats.culled = totalMeshes - list.length;
-      cullEl.textContent = "culled: " + backend.stats.culled + (post.useBVH ? " bvh" : "");
-
-      backend.renderFrame(camera, list, lights, post, selection, gizmo);
-
-      var ev = ResourceManager.evict();
-
-      for (var pi = 0; pi < allItems.length; pi++) prevModelCache.set(allItems[pi].entity, allItems[pi].model);
-      for (var li = 0; li < list.length; li++) visibleEntities.push(list[li].entity);
-      labels.update(camera, visibleEntities);
+      World.runPhase("preUpdate",  dt);
+      World.runPhase("update",     dt);
+      World.runPhase("postUpdate", dt);
+      World.runPhase("render",     dt);
 
       var stats = backend.getStats();
       fpsFrames++; fpsAccum += dt;
@@ -6850,54 +6819,7 @@ var ArtMerWorld = (function () {
       }
 
       diagTick++;
-      if (diagTick % 15 === 0) {
-        var rs = ResourceManager.stats();
-        var byKindStr = "";
-        for (var kk in rs.byKind) {
-          byKindStr += "  " + kk.padEnd(11) + " " + (rs.byKind[kk] / 1024 / 1024).toFixed(2) + " MB\n";
-        }
-        diagEl.textContent =
-          "── DEVICE ─────────────────────────────────────\n" +
-          "mobile:   " + Device.isMobile + " · lowEnd: " + Device.isLowEnd + "\n" +
-          "hdrMode:  " + backend.hdrMode + "\n" +
-          "bloom:    " + backend.bloomAvailable + " · taa: " + backend.taaAvailable + " · ssao: " + backend.ssaoAvailable + "\n" +
-          "\n── CAMERA ─────────────────────────────────────\n" +
-          "pos:      " + camera.position.x.toFixed(2) + ", " + camera.position.y.toFixed(2) + ", " + camera.position.z.toFixed(2) + "\n" +
-          "target:   " + camera.target.x.toFixed(2) + ", " + camera.target.y.toFixed(2) + ", " + camera.target.z.toFixed(2) + "\n" +
-          "\n── RENDER ─────────────────────────────────────\n" +
-          "draws:    " + stats.drawCalls + "\n" +
-          "tris:     " + Math.round(stats.triangles) + "\n" +
-          "visible:  " + stats.visible + "\n" +
-          "culled:   " + stats.culled + (post.useBVH ? " (BVH)" : " (linear)") + "\n" +
-          "frame:    " + stats.frameTimeMs.toFixed(2) + " ms\n" +
-          "shadows:  " + (post.shadows ? "CSM×" + lights[0].cascadeCount : "OFF") + (post.pcss.enabled ? " + PCSS" : " + PCF") + "\n" +
-          "ssao:     " + (post.ssao.enabled ? "ON" : "OFF") + "\n" +
-          "bloom:    " + (post.bloom.enabled ? "ON" : "OFF") + "\n" +
-          "taa:      " + (post.taa.enabled ? "ON+MV" : "OFF") + "\n" +
-          "ibl:      " + (post.ibl.enabled ? "ON" : "OFF") + "\n" +
-          "anims:    " + activeClips.length + (activeClip ? " (" + activeClip.name + " " + animTime.toFixed(2) + "s)" : "") + "\n" +
-          "\n── ARTMER WORLD ───────────────────────────────\n" +
-          "world:    " + ArtMerWorld.get().name + "\n" +
-          "time:     " + ArtMerWorld.get().epochLabel + " (t=" + ArtMerWorld.get().time.toFixed(1) + ")\n" +
-          "layers:   T=" + (ArtMerWorld.get().layers.territory ? "ON" : "off") +
-            " I=" + (ArtMerWorld.get().layers.infrastructure ? "ON" : "off") +
-            " P=" + (ArtMerWorld.get().layers.population ? "ON" : "off") +
-            " H=" + (ArtMerWorld.get().layers.history ? "ON" : "off") + "\n" +
-          "\n── RESOURCES (RFC 0003) ───────────────────────\n" +
-          "entries:  " + rs.entries + " · pinned: " + rs.pinned + "\n" +
-          "gpu:      " + (rs.bytes / 1024 / 1024).toFixed(2) + " / " + (rs.max / 1024 / 1024).toFixed(0) + " MB (est.)\n" +
-          "created:  " + rs.created + " · released: " + rs.released + " · evicted: " + rs.evicted + "\n" +
-          "misses:   " + rs.misses + "\n" +
-          "byKind:\n" + (byKindStr || "  (empty)\n") +
-          (ev.evicted > 0 ? "evicted this frame: " + ev.evicted + " (" + (ev.bytesFreed / 1024).toFixed(1) + " KB)\n" : "") +
-          "\n── EDITOR ─────────────────────────────────────\n" +
-          "mode:     " + mode + "\n" +
-          "selected: " + (selection ? selection.name + " (#" + selection.id + ")" : "none") + (multiSelection.length > 1 ? " + " + (multiSelection.length - 1) + " more" : "") + "\n" +
-          "entities: " + totalMeshes + " meshes\n" +
-          "history:  " + history.stats().undo + " undo, " + history.stats().redo + " redo\n" +
-          "\n── LOG (last 8) ───────────────────────────────\n" +
-          GLLog.slice(-8).join("\n");
-      }
+      if (diagTick % 15 === 0) updateDiagWindow();
 
       consecutiveFrameErrors = 0;
       if (!rafHalted) requestAnimationFrame(frame);
@@ -6912,6 +6834,63 @@ var ArtMerWorld = (function () {
         requestAnimationFrame(frame);
       }
     }
+  }
+
+  function updateDiagWindow() {
+    var rs = ResourceManager.stats();
+    var byKindStr = "";
+    for (var kk in rs.byKind) byKindStr += "  " + kk.padEnd(11) + " " + (rs.byKind[kk] / 1024 / 1024).toFixed(2) + " MB\n";
+    var stats = backend.getStats();
+    var ecs = World.stats();
+    var ecsStr = "  entities: " + ecs.entities + " · types: " + ecs.types + "\n";
+    for (var tt in ecs.byType) ecsStr += "    " + tt.padEnd(14) + " " + ecs.byType[tt] + "\n";
+    diagEl.textContent =
+      "-- DEVICE --\n" +
+      "mobile:   " + Device.isMobile + " · lowEnd: " + Device.isLowEnd + "\n" +
+      "hdrMode:  " + backend.hdrMode + "\n" +
+      "bloom:    " + backend.bloomAvailable + " · taa: " + backend.taaAvailable + " · ssao: " + backend.ssaoAvailable + "\n" +
+      "\n-- ECS --\n" +
+      ecsStr +
+      "  systems:  pre=" + ecs.systems.preUpdate +
+                    " up=" + ecs.systems.update +
+                    " post=" + ecs.systems.postUpdate +
+                    " render=" + ecs.systems.render + "\n" +
+      "  queries:  " + ecs.counters.queries +
+                    " · adds: " + ecs.counters.add +
+                    " · removes: " + ecs.counters.remove + "\n" +
+      "\n-- CAMERA --\n" +
+      "pos:      " + camera.position.x.toFixed(2) + ", " + camera.position.y.toFixed(2) + ", " + camera.position.z.toFixed(2) + "\n" +
+      "target:   " + camera.target.x.toFixed(2) + ", " + camera.target.y.toFixed(2) + ", " + camera.target.z.toFixed(2) + "\n" +
+      "\n-- RENDER --\n" +
+      "draws:    " + stats.drawCalls + "\n" +
+      "tris:     " + Math.round(stats.triangles) + "\n" +
+      "visible:  " + stats.visible + "\n" +
+      "culled:   " + stats.culled + (post.useBVH ? " (BVH)" : " (linear)") + "\n" +
+      "frame:    " + stats.frameTimeMs.toFixed(2) + " ms\n" +
+      "shadows:  " + (post.shadows ? "CSM x" + lights[0].cascadeCount : "OFF") + (post.pcss.enabled ? " + PCSS" : " + PCF") + "\n" +
+      "ssao:     " + (post.ssao.enabled ? "ON" : "OFF") + "\n" +
+      "bloom:    " + (post.bloom.enabled ? "ON" : "OFF") + "\n" +
+      "taa:      " + (post.taa.enabled ? "ON+MV" : "OFF") + "\n" +
+      "ibl:      " + (post.ibl.enabled ? "ON" : "OFF") + "\n" +
+      "anims:    " + activeClips.length + (activeClip ? " (" + activeClip.name + " " + animTime.toFixed(2) + "s)" : "") + "\n" +
+      "\n-- ARTMER WORLD --\n" +
+      "world:    " + ArtMerWorld.get().name + "\n" +
+      "time:     " + ArtMerWorld.get().epochLabel + " (t=" + ArtMerWorld.get().time.toFixed(1) + ")\n" +
+      "layers:   T=" + (ArtMerWorld.get().layers.territory ? "ON" : "off") +
+                " I=" + (ArtMerWorld.get().layers.infrastructure ? "ON" : "off") +
+                " P=" + (ArtMerWorld.get().layers.population ? "ON" : "off") +
+                " H=" + (ArtMerWorld.get().layers.history ? "ON" : "off") + "\n" +
+      "\n-- RESOURCES (RFC 0003) --\n" +
+      "entries:  " + rs.entries + " · pinned: " + rs.pinned + "\n" +
+      "gpu:      " + (rs.bytes / 1024 / 1024).toFixed(2) + " / " + (rs.max / 1024 / 1024).toFixed(0) + " MB\n" +
+      "created:  " + rs.created + " · released: " + rs.released + " · evicted: " + rs.evicted + "\n" +
+      "misses:   " + rs.misses + "\n" +
+      "byKind:\n" + (byKindStr || "  (empty)\n") +
+      "\n-- EDITOR --\n" +
+      "mode:     " + mode + "\n" +
+      "selected: " + (selection ? selection.name + " (#" + selection.id + ")" : "none") + "\n" +
+      "\n-- LOG (last 8) --\n" +
+      GLLog.slice(-8).join("\n");
   }
 
   var worldBadge = document.getElementById("world-badge");
@@ -6968,7 +6947,6 @@ var ArtMerWorld = (function () {
       e.artmer = ArtMerWorld.makeData({ type: "poi", layer: "history", status: "active", founded: Math.floor(ArtMerWorld.get().time) - 5 });
     }
     e.transform.position.copy(pos);
-    EntityRegistry.register(e);
     history.execute(new CommandAdd(group, e));
     select(e);
     renderTree(); renderInspector(); renderTagGrid();
@@ -7008,7 +6986,7 @@ var ArtMerWorld = (function () {
   updateRMStatus();
 
   deviceInfoEl.textContent = "mobile=" + Device.isMobile + " lowEnd=" + Device.isLowEnd +
-    " floatRT=" + backend.canRenderFloat + " hdr=" + backend.hdrMode + " · v0.5 ECS-ready";
+    " floatRT=" + backend.canRenderFloat + " hdr=" + backend.hdrMode + " · v0.6 ECS";
 
   /* ============== XR / AV / DEVICES ============== */
   XRSessionManager.attach(backend, camera);
@@ -7024,7 +7002,7 @@ var ArtMerWorld = (function () {
     var btnExit = document.getElementById("btn-xr-exit");
     if (xrBadge) {
       if (XRSessionManager.isPresenting()) { xrBadge.classList.add("on"); xrBadge.textContent = "XR · " + presentMode.toUpperCase(); }
-      else { xrBadge.classList.remove("on"); }
+      else xrBadge.classList.remove("on");
     }
     if (xrStatus) {
       xrStatus.textContent = presentMode.toUpperCase() + (XRSessionManager.isPresenting() ? " · session active" : " · idle") +
@@ -7034,10 +7012,7 @@ var ArtMerWorld = (function () {
     if (btnExit) btnExit.disabled = !XRSessionManager.isPresenting();
   }
 
-  XRSessionManager.setOnModeChange(function (m) {
-    presentMode = m;
-    updateModeToggleUI();
-  });
+  XRSessionManager.setOnModeChange(function (m) { presentMode = m; updateModeToggleUI(); });
 
   document.querySelectorAll("#mode-toggle button").forEach(function (btn) {
     btn.onclick = async function () {
@@ -7072,12 +7047,8 @@ var ArtMerWorld = (function () {
           if (s2) s2.requestAnimationFrame(xrCamTick);
         });
       }
-    } catch (err) {
-      showError("XR session failed", err);
-    } finally {
-      hideLoading();
-      updateModeToggleUI();
-    }
+    } catch (err) { showError("XR session failed", err); }
+    finally { hideLoading(); updateModeToggleUI(); }
   };
   document.getElementById("btn-xr-exit").onclick = async function () {
     await XRSessionManager.exit();
@@ -7089,9 +7060,7 @@ var ArtMerWorld = (function () {
     var grid = document.getElementById("codec-grid");
     if (grid) {
       var html = "";
-      function cell(label, ok) {
-        return '<span class="' + (ok ? "yes" : "no") + '">' + label + (ok ? " ✓" : " —") + "</span>";
-      }
+      function cell(label, ok) { return '<span class="' + (ok ? "yes" : "no") + '">' + label + (ok ? " OK" : " --") + "</span>"; }
       html += cell("MediaRecorder", p.mediaRecorder);
       html += cell("captureStream", p.captureStream);
       html += cell("AudioContext", p.audioContext);
@@ -7116,16 +7085,14 @@ var ArtMerWorld = (function () {
     function addGroup(title, arr) {
       html += "<li class='ok'><b>" + title + "</b> (" + arr.length + ")</li>";
       if (!arr.length) html += "<li class='warn'>None detected</li>";
-      arr.forEach(function (d) {
-        html += "<li class='ok'>" + d.label + "</li>";
-      });
+      arr.forEach(function (d) { html += "<li class='ok'>" + d.label + "</li>"; });
     }
     if (media.error) html += "<li class='warn'>Media: " + media.error + "</li>";
     addGroup("Cameras", media.videoinput || []);
     addGroup("Microphones", media.audioinput || []);
     addGroup("Audio outputs", media.audiooutput || []);
     html += "<li class='" + (xr.webxr ? "ok" : "warn") + "'>WebXR: " + (xr.webxr ? "yes" : "no") +
-      " · VR " + (xr.immersiveVr ? "✓" : "—") + " · AR " + (xr.immersiveAr ? "✓" : "—") + "</li>";
+      " · VR " + (xr.immersiveVr ? "OK" : "--") + " · AR " + (xr.immersiveAr ? "OK" : "--") + "</li>";
     ul.innerHTML = html;
 
     var btnVr = document.getElementById("btn-mode-vr");
@@ -7137,18 +7104,11 @@ var ArtMerWorld = (function () {
 
     var profiles = DeviceRegistry.knownProfiles();
     var profEl = document.getElementById("xr-profiles");
-    if (profEl) {
-      profEl.innerHTML = profiles.map(function (p) {
-        return "<b>" + p.name + "</b> — " + p.modes.join(", ") + " · " + p.notes;
-      }).join("<br>");
-    }
+    if (profEl) profEl.innerHTML = profiles.map(function (p) { return "<b>" + p.name + "</b> — " + p.modes.join(", ") + " · " + p.notes; }).join("<br>");
     updateModeToggleUI();
   }
 
-  document.getElementById("btn-av-probe").onclick = function () {
-    refreshCodecUI();
-    glLog("Codec probe complete");
-  };
+  document.getElementById("btn-av-probe").onclick = function () { refreshCodecUI(); glLog("Codec probe complete"); };
   document.getElementById("btn-av-convert").onclick = async function () {
     var last = MediaCodecHub.getLastRecording();
     if (!last.blob) { showError("Re-encode", new Error("No clip in buffer — record or import first")); return; }
@@ -7174,8 +7134,7 @@ var ArtMerWorld = (function () {
     try {
       var res = await MediaCodecHub.importFile(f);
       var avSt = document.getElementById("av-status");
-      if (avSt) avSt.textContent = "Imported " + f.name + " · " + (res.blob.size / 1024).toFixed(0) + " KB" +
-        (res.audioDecoded ? " · audio decoded" : "");
+      if (avSt) avSt.textContent = "Imported " + f.name + " · " + (res.blob.size / 1024).toFixed(0) + " KB" + (res.audioDecoded ? " · audio decoded" : "");
       glLog("AV import: " + f.name);
     } catch (err) { showError("AV import failed", err); }
     e.target.value = "";
@@ -7196,9 +7155,9 @@ var ArtMerWorld = (function () {
     var draco = await DracoDecoder.ensure().catch(function () { return false; });
     var meshopt = await MeshoptDecoder.ensure().catch(function () { return false; });
     var basis = await BasisKTX2.ensure().catch(function () { return false; });
-    wasmStatusEl.textContent = "Draco: " + (draco ? "✓ ready" : "✗ unavailable") +
-      "  Meshopt: " + (meshopt ? "✓ ready" : "✗ unavailable") +
-      "  Basis: " + (basis ? "✓ ready" : "✗ unavailable");
+    wasmStatusEl.textContent = "Draco: " + (draco ? "OK" : "unavailable") +
+      "  Meshopt: " + (meshopt ? "OK" : "unavailable") +
+      "  Basis: " + (basis ? "OK" : "unavailable");
     wasmBadge.textContent = "wasm: " + ((draco ? 1 : 0) + (meshopt ? 1 : 0) + (basis ? 1 : 0)) + "/3";
   })();
 
